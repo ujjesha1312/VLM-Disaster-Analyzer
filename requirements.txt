@@ -1,0 +1,53 @@
+# ==============================================================================
+# VLM Disaster Analyzer — Python dependencies
+# ==============================================================================
+#
+# Quick install (CPU):
+#   pip install -r requirements.txt
+#
+# GPU install (CUDA 12.1):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements.txt
+#
+# 4-bit quantization for LLaVA / Qwen-VL (CUDA only, recommended for GPU):
+#   pip install bitsandbytes
+#
+# CLIP local model download (run once):
+#   git clone https://huggingface.co/openai/clip-vit-base-patch32 models/clip-vit-base-patch32
+# ==============================================================================
+
+
+# ── Core ML ───────────────────────────────────────────────────────────────────
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.40.0
+accelerate>=0.27.0          # required for device_map="auto" (LLaVA / Qwen quantized)
+sentencepiece>=0.1.99       # Qwen2-VL tokenizer
+
+# ── Image processing ──────────────────────────────────────────────────────────
+Pillow>=10.0.0
+
+# ── Qwen2-VL extras ───────────────────────────────────────────────────────────
+einops>=0.7.0               # tensor ops used by Qwen2-VL
+qwen-vl-utils>=0.0.2        # apply_chat_template helpers
+
+# ── GPT-4o Vision (OpenAI API) ────────────────────────────────────────────────
+openai>=1.30.0
+
+# ── Environment / config ──────────────────────────────────────────────────────
+python-dotenv>=1.0.0        # loads .env at startup (OPENAI_API_KEY, LOG_LEVEL)
+
+# ── Web API ───────────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9     # required for FastAPI UploadFile support
+
+# ── Evaluation pipeline & visualisation ──────────────────────────────────────
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+numpy>=1.26.0
+
+# ── Optional: 4-bit quantization (GPU only) ───────────────────────────────────
+# Uncomment to enable LLaVA / Qwen-VL 4-bit loading on CUDA:
+# bitsandbytes>=0.41.0

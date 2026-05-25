@@ -1,0 +1,30 @@
+# Claude internal
+.claude/
+
+# Documentation / reports
+AUDIT_REPORT.md
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Pipeline outputs
+outputs/
+
+# HuggingFace / model cache
+.cache/
+/models/
+
+# Node
+node_modules/
+package-lock.json
+
+# Environment — never commit real keys
+.env
+
+# OS
+.DS_Store
+Thumbs.db
