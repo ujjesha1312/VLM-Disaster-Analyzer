@@ -1,111 +1,117 @@
-"""
-blip_model.py — BLIP unconditional image captioning for disaster scenes.
-
-Architecture:
-  - Salesforce/blip-image-captioning-base (~990 MB, CPU-friendly)
-  - Unconditional captioning: no text prompt supplied — model describes freely
-  - Lazy singleton: loads once per process
-
-Inference flow:
-  Image → BlipProcessor (resize + normalize) → BlipForConditionalGeneration.generate()
-       → decode token IDs → natural language caption
-
-Why blip-image-captioning-base over blip2-opt-2.7b:
-  - 5× smaller: 990 MB vs 5+ GB
-  - Runs on CPU without quantization
-  - Sufficient for captioning without VQA
-"""
-
-import logging
-from pathlib import Path
-
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
 import torch
-from PIL import Image, UnidentifiedImageError
-from transformers import BlipForConditionalGeneration, BlipProcessor
-
-logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Device Configuration
+# -------------------------------------------------------------------
 
-_MODEL_ID       = "Salesforce/blip-image-captioning-base"
-_DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-_DTYPE          = torch.float16 if _DEVICE.type == "cuda" else torch.float32
-_MAX_NEW_TOKENS = 60   # enough for a full sentence caption
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# ---------------------------------------------------------------------------
-# Lazy singleton
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Local Model Path
+# -------------------------------------------------------------------
 
-_model:     BlipForConditionalGeneration | None = None
-_processor: BlipProcessor | None               = None
-
-
-def _load_model() -> tuple[BlipForConditionalGeneration, BlipProcessor]:
-    """Download / load BLIP from HuggingFace Hub on first call, then reuse."""
-    global _model, _processor
-
-    if _model is None:
-        logger.info("Loading BLIP '%s' on %s ...", _MODEL_ID, _DEVICE)
-        _processor = BlipProcessor.from_pretrained(_MODEL_ID)
-        _model     = (
-            BlipForConditionalGeneration
-            .from_pretrained(_MODEL_ID, torch_dtype=_DTYPE)
-            .to(_DEVICE)
-        )
-        _model.eval()
-        logger.info("BLIP ready on %s.", _DEVICE)
-
-    return _model, _processor
+MODEL_PATH = "./models/blip-image-captioning-base"
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Load BLIP Model
+# -------------------------------------------------------------------
 
-def predict_disaster(image_path: str) -> dict:
-    """Generate a free-form natural language caption for a disaster image.
+processor = BlipProcessor.from_pretrained(MODEL_PATH)
 
-    No text prompt is supplied — the model describes what it sees without
-    any classification constraint, yielding richer contextual captions.
+model = BlipForConditionalGeneration.from_pretrained(
+    MODEL_PATH
+).to(device)
 
-    Args:
-        image_path: Absolute path to the image file.
 
-    Returns:
-        {
-            "model":   "BLIP-2",
-            "caption": str,   # e.g. "a flooded road surrounded by trees and water"
-        }
+# -------------------------------------------------------------------
+# Prediction Function
+# -------------------------------------------------------------------
 
-    Raises:
-        FileNotFoundError: If the image path does not exist.
-        ValueError:        If the file is not a valid image.
-    """
-    path = Path(image_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Image not found: {image_path}")
+def predict_caption(image_path):
+
+    # ---------------------------------------------------------------
+    # Load image
+    # ---------------------------------------------------------------
 
     try:
-        image = Image.open(path).convert("RGB")
-    except UnidentifiedImageError as exc:
-        raise ValueError(f"Not a valid image file: {image_path}") from exc
+        image = Image.open(image_path).convert("RGB")
 
-    model, processor = _load_model()
+    except Exception as exc:
+        raise ValueError(f"Invalid image file: {exc}")
 
-    # Pass image only — unconditional captioning.
-    inputs = processor(images=image, return_tensors="pt").to(_DEVICE)
+
+    # ---------------------------------------------------------------
+    # Process image
+    # ---------------------------------------------------------------
+
+    inputs = processor(
+        images=image,
+        return_tensors="pt"
+    )
+
+    # Move tensors to device
+    inputs = {
+        k: v.to(device)
+        for k, v in inputs.items()
+    }
+
+
+    # ---------------------------------------------------------------
+    # Generate caption
+    # ---------------------------------------------------------------
 
     with torch.no_grad():
-        generated_ids = model.generate(**inputs, max_new_tokens=_MAX_NEW_TOKENS)
 
-    caption = processor.decode(generated_ids[0], skip_special_tokens=True).strip()
-    logger.debug("BLIP caption: '%s'", caption)
+        output = model.generate(
+            **inputs,
+            max_new_tokens=50
+        )
+
+
+    # ---------------------------------------------------------------
+    # Decode output
+    # ---------------------------------------------------------------
+
+    caption = processor.decode(
+        output[0],
+        skip_special_tokens=True
+    )
+
+
+    # ---------------------------------------------------------------
+    # Debug logging
+    # ---------------------------------------------------------------
+
+    print("\nGenerated Caption:")
+    print(caption)
+
+
+    # ---------------------------------------------------------------
+    # Return response
+    # ---------------------------------------------------------------
 
     return {
-        "model":   "BLIP-2",
-        "caption": caption,
+        "model": "BLIP-2",
+        "caption": caption
     }
+
+
+# -------------------------------------------------------------------
+# Standalone Test
+# -------------------------------------------------------------------
+
+if __name__ == "__main__":
+
+    image_path = "test.jpg"
+
+    result = predict_caption(image_path)
+
+    print("\nCaption Result")
+    print("-------------------------")
+    print(f"Model   : {result['model']}")
+    print(f"Caption : {result['caption']}")

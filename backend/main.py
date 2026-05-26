@@ -19,8 +19,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from routes.predict import router as predict_router
-
+from backend.routes.predict import router as predict_router
 # Load .env at startup so OPENAI_API_KEY and LOG_LEVEL are available immediately.
 load_dotenv()
 
