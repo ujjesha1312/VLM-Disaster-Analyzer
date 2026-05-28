@@ -1,6 +1,7 @@
 from transformers import Blip2Processor, Blip2ForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import threading
 import torch
 
 
@@ -21,24 +22,40 @@ MODEL_PATH = str(
 
 
 # -------------------------------------------------------------------
-# Load BLIP-2 Model
+# Lazy Loading Setup
 # -------------------------------------------------------------------
 
 # float16 on GPU (~5.4 GB VRAM) — float32 on CPU (~11 GB RAM)
-# device_map="auto" lets accelerate stream weights across CPU/GPU memory
-# This is required for BLIP-2 due to its larger size vs original BLIP
+# Models are NOT loaded at import time. _load_model() is called on
+# the first inference request and caches the result for all subsequent
+# requests. This keeps server startup instant and VRAM usage on-demand.
 
 dtype = torch.float16 if device == "cuda" else torch.float32
 
-processor = Blip2Processor.from_pretrained(MODEL_PATH)
+_model:     Blip2ForConditionalGeneration | None = None
+_processor: Blip2Processor | None               = None
+_lock = threading.Lock()
 
-model = Blip2ForConditionalGeneration.from_pretrained(
-    MODEL_PATH,
-    torch_dtype=dtype,
-    device_map="auto"
-)
 
-model.eval()
+# -------------------------------------------------------------------
+# Model Loader (lazy singleton with double-checked locking)
+# -------------------------------------------------------------------
+
+def _load_model():
+    global _model, _processor
+
+    if _model is None:
+        with _lock:
+            if _model is None:
+                _processor = Blip2Processor.from_pretrained(MODEL_PATH)
+                _model = Blip2ForConditionalGeneration.from_pretrained(
+                    MODEL_PATH,
+                    torch_dtype=dtype,
+                    device_map="auto"
+                )
+                _model.eval()
+
+    return _model, _processor
 
 
 # -------------------------------------------------------------------
@@ -53,6 +70,13 @@ MAX_NEW_TOKENS = 100
 # -------------------------------------------------------------------
 
 def predict_caption(image_path):
+
+    # ---------------------------------------------------------------
+    # Ensure model is loaded (no-op after first call)
+    # ---------------------------------------------------------------
+
+    model, processor = _load_model()
+
 
     # ---------------------------------------------------------------
     # Load image

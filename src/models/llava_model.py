@@ -1,6 +1,7 @@
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import threading
 import torch
 
 
@@ -21,23 +22,42 @@ MODEL_PATH = str(
 
 
 # -------------------------------------------------------------------
-# Load LLaVA Model
+# Lazy Loading Setup
 # -------------------------------------------------------------------
 
 # float16 on GPU halves memory (~14 GB → ~7 GB VRAM)
 # float32 on CPU is standard (~28 GB RAM — large model, be patient)
+# Models are NOT loaded at import time. _load_model() is called on
+# the first inference request and caches the result for all subsequent
+# requests. This keeps server startup instant and VRAM usage on-demand.
+
 dtype = torch.float16 if device == "cuda" else torch.float32
 
-processor = AutoProcessor.from_pretrained(MODEL_PATH)
+_model:     LlavaForConditionalGeneration | None = None
+_processor: AutoProcessor | None                 = None
+_lock = threading.Lock()
 
-model = LlavaForConditionalGeneration.from_pretrained(
-    MODEL_PATH,
-    torch_dtype=dtype,
-    low_cpu_mem_usage=True,     # stream weights to reduce peak RAM during load
-    device_map="auto"           # accelerate handles device placement automatically
-)
 
-model.eval()
+# -------------------------------------------------------------------
+# Model Loader (lazy singleton with double-checked locking)
+# -------------------------------------------------------------------
+
+def _load_model():
+    global _model, _processor
+
+    if _model is None:
+        with _lock:
+            if _model is None:
+                _processor = AutoProcessor.from_pretrained(MODEL_PATH)
+                _model = LlavaForConditionalGeneration.from_pretrained(
+                    MODEL_PATH,
+                    torch_dtype=dtype,
+                    low_cpu_mem_usage=True,
+                    device_map="auto"
+                )
+                _model.eval()
+
+    return _model, _processor
 
 
 # -------------------------------------------------------------------
@@ -68,6 +88,13 @@ PROMPT = (
 # -------------------------------------------------------------------
 
 def predict_response(image_path):
+
+    # ---------------------------------------------------------------
+    # Ensure model is loaded (no-op after first call)
+    # ---------------------------------------------------------------
+
+    model, processor = _load_model()
+
 
     # ---------------------------------------------------------------
     # Load image

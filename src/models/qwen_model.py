@@ -1,6 +1,7 @@
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import threading
 import torch
 
 
@@ -44,36 +45,58 @@ def _get_bnb_config():
 
 
 # -------------------------------------------------------------------
-# Load Qwen2-VL Model
+# Lazy Loading Setup
 # -------------------------------------------------------------------
 
 # float16 on GPU (~4 GB VRAM) — float32 on CPU (~8 GB RAM)
 # 4-bit reduces VRAM to ~2 GB when bitsandbytes is available on CUDA.
-# device_map="auto" lets accelerate handle weight placement.
+# Models are NOT loaded at import time. _load_model() is called on
+# the first inference request and caches the result for all subsequent
+# requests. This keeps server startup instant and VRAM usage on-demand.
 
 dtype = torch.float16 if device == "cuda" else torch.float32
 
-processor = AutoProcessor.from_pretrained(MODEL_PATH, trust_remote_code=True)
+_model:     Qwen2VLForConditionalGeneration | None = None
+_processor: AutoProcessor | None                   = None
+_lock = threading.Lock()
 
-bnb_config = _get_bnb_config()
 
-if bnb_config is not None:
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
-        MODEL_PATH,
-        quantization_config=bnb_config,
-        device_map="auto",
-        trust_remote_code=True,
-    )
-else:
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
-        MODEL_PATH,
-        torch_dtype=dtype,
-        low_cpu_mem_usage=True,
-        device_map="auto",
-        trust_remote_code=True,
-    )
+# -------------------------------------------------------------------
+# Model Loader (lazy singleton with double-checked locking)
+# -------------------------------------------------------------------
 
-model.eval()
+def _load_model():
+    global _model, _processor
+
+    if _model is None:
+        with _lock:
+            if _model is None:
+                _processor = AutoProcessor.from_pretrained(
+                    MODEL_PATH,
+                    trust_remote_code=True
+                )
+
+                bnb_config = _get_bnb_config()
+
+                if bnb_config is not None:
+                    _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                        MODEL_PATH,
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True,
+                    )
+                else:
+                    _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                        MODEL_PATH,
+                        torch_dtype=dtype,
+                        low_cpu_mem_usage=True,
+                        device_map="auto",
+                        trust_remote_code=True,
+                    )
+
+                _model.eval()
+
+    return _model, _processor
 
 
 # -------------------------------------------------------------------
@@ -103,6 +126,13 @@ PROMPT = (
 # -------------------------------------------------------------------
 
 def predict_response(image_path):
+
+    # ---------------------------------------------------------------
+    # Ensure model is loaded (no-op after first call)
+    # ---------------------------------------------------------------
+
+    model, processor = _load_model()
+
 
     # ---------------------------------------------------------------
     # Load image
