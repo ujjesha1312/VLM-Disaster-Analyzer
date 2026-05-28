@@ -9,11 +9,17 @@
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 #   pip install -r requirements.txt
 #
-# 4-bit quantization for LLaVA / Qwen-VL (CUDA only, recommended for GPU):
+# Optional 8-bit quantization for BLIP-2 / LLaVA on GPU:
 #   pip install bitsandbytes
 #
-# CLIP local model download (run once):
-#   git clone https://huggingface.co/openai/clip-vit-base-patch32 models/clip-vit-base-patch32
+# Local model downloads (run once from project root):
+#   CLIP:   git clone https://huggingface.co/openai/clip-vit-base-patch32 models/clip-vit-base-patch32
+#   BLIP-2: git clone https://huggingface.co/Salesforce/blip2-opt-2.7b models/blip2-opt-2.7b
+#   LLaVA:  git clone https://huggingface.co/llava-hf/llava-1.5-7b-hf models/llava-1.5-7b-hf
+#
+# Colab GPU setup:
+#   !pip install -r requirements.txt
+#   !pip install bitsandbytes   # for 8-bit quantized loading
 # ==============================================================================
 
 

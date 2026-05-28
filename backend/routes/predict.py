@@ -7,10 +7,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from backend.services.clip_service import run as clip_run
-from backend.services.blip_service import run as blip_run
-from backend.services.llava_service import run as llava_run
-from backend.services.gpt4v_service import run as gpt4v_run
+from backend.services.clip_service   import run as clip_run
+from backend.services.blip2_service  import run as blip2_run
+from backend.services.llava_service  import run as llava_run
+from backend.services.gpt4v_service  import run as gpt4v_run
 
 router = APIRouter()
 
@@ -20,8 +20,8 @@ router = APIRouter()
 # -------------------------------------------------------------------
 
 _DISPATCH = {
-    "clip": clip_run,
-    "blip": blip_run,
+    "clip":  clip_run,
+    "blip2": blip2_run,
     "llava": llava_run,
     "gpt4v": gpt4v_run,
 }
@@ -43,8 +43,8 @@ _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
 _CONTENT_TYPE_TO_SUFFIX = {
     "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/bmp": ".bmp",
+    "image/png":  ".png",
+    "image/bmp":  ".bmp",
     "image/webp": ".webp",
     "image/tiff": ".tiff",
 }
@@ -70,8 +70,8 @@ def list_models():
                 ]
             },
 
-            "blip": {
-                "purpose": "Image caption generation",
+            "blip2": {
+                "purpose": "Advanced multimodal image captioning (BLIP-2)",
                 "output_keys": [
                     "model",
                     "caption"

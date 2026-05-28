@@ -2,14 +2,11 @@
 main.py — FastAPI application entry point.
 
 Multi-VLM Image Understanding Platform for disaster scene analysis.
-All five models (CLIP, BLIP, LLaVA, Qwen-VL, GPT-4V) share this common
-FastAPI server, upload pipeline, and routing infrastructure.
+Three Vision Language Models are active, each producing a different
+style of output from the same uploaded image.
 
-Start the server from the backend/ directory:
-    uvicorn main:app --reload --port 8000
-
-Or with structured logging:
-    uvicorn main:app --reload --port 8000 --log-level info
+Start from the project root:
+    uvicorn backend.main:app --reload --port 8000
 """
 
 import logging
@@ -20,6 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from backend.routes.predict import router as predict_router
+
 # Load .env at startup so OPENAI_API_KEY and LOG_LEVEL are available immediately.
 load_dotenv()
 
@@ -39,19 +37,23 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="VLM Disaster Analyzer",
     description=(
-        "**Multi-VLM Image Understanding Platform** for disaster scene analysis.\n\n"
-        "Upload any disaster image to five different Vision Language Models and "
-        "compare how each one interprets the same scene:\n\n"
-        "| Model | Purpose | Key Output |\n"
-        "|-------|---------|------------|\n"
-        "| **CLIP** | Zero-shot classification | `prediction` + `confidence` |\n"
-        "| **BLIP** | Image captioning | `caption` |\n"
-        "| **LLaVA** | Visual scene reasoning | `response` |\n"
-        "| **Qwen-VL** | Multimodal scene analysis | `response` |\n"
-        "| **GPT-4V** | Cloud advanced reasoning | `response` (needs API key) |\n\n"
+        "## Multi-VLM Image Understanding Platform\n\n"
+        "Upload the **same disaster image** to three Vision Language Models "
+        "and compare how each interprets the scene differently:\n\n"
+        "| Model | Endpoint | Output Style | Key Field |\n"
+        "|-------|----------|-------------|----------|\n"
+        "| **CLIP** | `POST /predict/clip` | Semantic classification | `prediction` + `confidence` |\n"
+        "| **BLIP-2** | `POST /predict/blip2` | Multimodal caption generation | `caption` |\n"
+        "| **LLaVA** | `POST /predict/llava` | Visual scene reasoning | `response` |\n\n"
+        "### Same image — three perspectives\n"
+        "```\n"
+        "CLIP   → { \"prediction\": \"Flood\", \"confidence\": 87.3 }\n"
+        "BLIP-2 → { \"caption\": \"a flooded road with submerged trees\" }\n"
+        "LLaVA  → { \"response\": \"The image shows severe urban flooding...\" }\n"
+        "```\n\n"
         "Use `GET /models` to explore all available backends and their output schemas."
     ),
-    version="2.0.0",
+    version="3.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -66,18 +68,17 @@ app.include_router(predict_router, tags=["VLM Inference"])
 
 @app.get("/", tags=["Health"], summary="API health check")
 def root() -> dict:
-    """Confirm the server is running and return the available endpoints."""
+    """Confirm the server is running and return the active endpoints."""
     return {
-        "status":    "running",
-        "version":   "2.0.0",
+        "status":  "running",
+        "version": "3.0.0",
+        "active_models": ["clip", "blip2", "llava"],
         "endpoints": {
-            "docs":         "/docs",
-            "models":       "/models",
-            "predict_clip": "/predict/clip",
-            "predict_blip": "/predict/blip",
-            "predict_llava":"/predict/llava",
-            "predict_qwen": "/predict/qwen",
-            "predict_gpt4v":"/predict/gpt4v",
+            "docs":          "/docs",
+            "models":        "/models",
+            "predict_clip":  "/predict/clip",
+            "predict_blip2": "/predict/blip2",
+            "predict_llava": "/predict/llava",
         },
     }
 
@@ -88,4 +89,4 @@ def root() -> dict:
 
 if __name__ == "__main__":
     logger.info("Starting VLM Disaster Analyzer API on http://0.0.0.0:8000")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
