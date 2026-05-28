@@ -176,6 +176,15 @@ async def predict(
 
         result = _DISPATCH[model_name](str(tmp_path))
 
+    except EnvironmentError as exc:
+
+        # Missing API key (e.g. OPENAI_API_KEY not set for GPT-4V).
+        # 503 = Service Unavailable — configuration issue, not a code bug.
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service not configured: {exc}"
+        )
+
     except Exception as exc:
 
         raise HTTPException(

@@ -2,7 +2,7 @@
 main.py — FastAPI application entry point.
 
 Multi-VLM Image Understanding Platform for disaster scene analysis.
-Three Vision Language Models are active, each producing a different
+Five Vision Language Models are active, each producing a different
 style of output from the same uploaded image.
 
 Start from the project root:
@@ -38,24 +38,27 @@ app = FastAPI(
     title="VLM Disaster Analyzer",
     description=(
         "## Multi-VLM Image Understanding Platform\n\n"
-        "Upload the **same disaster image** to four Vision Language Models "
+        "Upload the **same disaster image** to five Vision Language Models "
         "and compare how each interprets the scene differently:\n\n"
-        "| Model | Endpoint | Output Style | Key Field |\n"
-        "|-------|----------|-------------|----------|\n"
-        "| **CLIP** | `POST /predict/clip` | Semantic classification | `prediction` + `confidence` |\n"
-        "| **BLIP-2** | `POST /predict/blip2` | Multimodal caption generation | `caption` |\n"
-        "| **LLaVA** | `POST /predict/llava` | Visual scene reasoning | `response` |\n"
-        "| **Qwen2-VL** | `POST /predict/qwen` | Structured scene understanding | `response` |\n\n"
-        "### Same image — four perspectives\n"
+        "| Model | Endpoint | Backend | Output Style | Key Field |\n"
+        "|-------|----------|---------|-------------|----------|\n"
+        "| **CLIP** | `POST /predict/clip` | Local | Semantic classification | `prediction` + `confidence` |\n"
+        "| **BLIP-2** | `POST /predict/blip2` | Local | Multimodal caption generation | `caption` |\n"
+        "| **LLaVA** | `POST /predict/llava` | Local | Visual scene reasoning | `response` |\n"
+        "| **Qwen2-VL** | `POST /predict/qwen` | Local | Structured scene understanding | `response` |\n"
+        "| **GPT-4V** | `POST /predict/gpt4v` | Cloud ☁️ | Advanced multimodal reasoning | `response` |\n\n"
+        "> **GPT-4V** requires `OPENAI_API_KEY` in `.env`. Returns HTTP 503 if not configured.\n\n"
+        "### Same image — five perspectives\n"
         "```\n"
         "CLIP      → { \"prediction\": \"Flood\", \"confidence\": 87.3 }\n"
         "BLIP-2    → { \"caption\": \"a flooded road with submerged trees\" }\n"
         "LLaVA     → { \"response\": \"The image shows severe urban flooding...\" }\n"
         "Qwen2-VL  → { \"response\": \"Large-scale flooding with submerged roads...\" }\n"
+        "GPT-4V    → { \"response\": \"The image depicts severe flooding affecting...\" }\n"
         "```\n\n"
         "Use `GET /models` to explore all available backends and their output schemas."
     ),
-    version="4.0.0",
+    version="5.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -73,15 +76,22 @@ def root() -> dict:
     """Confirm the server is running and return the active endpoints."""
     return {
         "status":  "running",
-        "version": "4.0.0",
-        "active_models": ["clip", "blip2", "llava", "qwen"],
+        "version": "5.0.0",
+        "active_models": {
+            "local": ["clip", "blip2", "llava", "qwen"],
+            "cloud": ["gpt4v"],
+        },
         "endpoints": {
-            "docs":          "/docs",
-            "models":        "/models",
-            "predict_clip":  "/predict/clip",
-            "predict_blip2": "/predict/blip2",
-            "predict_llava": "/predict/llava",
-            "predict_qwen":  "/predict/qwen",
+            "docs":           "/docs",
+            "models":         "/models",
+            "predict_clip":   "/predict/clip",
+            "predict_blip2":  "/predict/blip2",
+            "predict_llava":  "/predict/llava",
+            "predict_qwen":   "/predict/qwen",
+            "predict_gpt4v":  "/predict/gpt4v",
+        },
+        "notes": {
+            "gpt4v": "Requires OPENAI_API_KEY in .env — returns 503 if not configured",
         },
     }
 
