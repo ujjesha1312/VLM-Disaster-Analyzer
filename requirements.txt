@@ -16,6 +16,7 @@
 #   CLIP:   git clone https://huggingface.co/openai/clip-vit-base-patch32 models/clip-vit-base-patch32
 #   BLIP-2: git clone https://huggingface.co/Salesforce/blip2-opt-2.7b models/blip2-opt-2.7b
 #   LLaVA:  git clone https://huggingface.co/llava-hf/llava-1.5-7b-hf models/llava-1.5-7b-hf
+#   Qwen:   git clone https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct models/qwen2-vl-2b-instruct
 #
 # Colab GPU setup:
 #   !pip install -r requirements.txt
@@ -26,7 +27,7 @@
 # ── Core ML ───────────────────────────────────────────────────────────────────
 torch>=2.1.0
 torchvision>=0.16.0
-transformers>=4.40.0
+transformers>=4.45.0
 accelerate>=0.27.0          # required for device_map="auto" (LLaVA / Qwen quantized)
 sentencepiece>=0.1.99       # Qwen2-VL tokenizer
 
@@ -55,5 +56,6 @@ seaborn>=0.13.0
 numpy>=1.26.0
 
 # ── Optional: 4-bit quantization (GPU only) ───────────────────────────────────
-# Uncomment to enable LLaVA / Qwen-VL 4-bit loading on CUDA:
-# bitsandbytes>=0.41.0
+# Required for Qwen2-VL 4-bit NF4 loading on CUDA (~2 GB VRAM vs ~4 GB fp16).
+# Silently skipped on CPU. Install before starting the server on a GPU machine.
+bitsandbytes>=0.43.0

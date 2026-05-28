@@ -38,22 +38,24 @@ app = FastAPI(
     title="VLM Disaster Analyzer",
     description=(
         "## Multi-VLM Image Understanding Platform\n\n"
-        "Upload the **same disaster image** to three Vision Language Models "
+        "Upload the **same disaster image** to four Vision Language Models "
         "and compare how each interprets the scene differently:\n\n"
         "| Model | Endpoint | Output Style | Key Field |\n"
         "|-------|----------|-------------|----------|\n"
         "| **CLIP** | `POST /predict/clip` | Semantic classification | `prediction` + `confidence` |\n"
         "| **BLIP-2** | `POST /predict/blip2` | Multimodal caption generation | `caption` |\n"
-        "| **LLaVA** | `POST /predict/llava` | Visual scene reasoning | `response` |\n\n"
-        "### Same image — three perspectives\n"
+        "| **LLaVA** | `POST /predict/llava` | Visual scene reasoning | `response` |\n"
+        "| **Qwen2-VL** | `POST /predict/qwen` | Structured scene understanding | `response` |\n\n"
+        "### Same image — four perspectives\n"
         "```\n"
-        "CLIP   → { \"prediction\": \"Flood\", \"confidence\": 87.3 }\n"
-        "BLIP-2 → { \"caption\": \"a flooded road with submerged trees\" }\n"
-        "LLaVA  → { \"response\": \"The image shows severe urban flooding...\" }\n"
+        "CLIP      → { \"prediction\": \"Flood\", \"confidence\": 87.3 }\n"
+        "BLIP-2    → { \"caption\": \"a flooded road with submerged trees\" }\n"
+        "LLaVA     → { \"response\": \"The image shows severe urban flooding...\" }\n"
+        "Qwen2-VL  → { \"response\": \"Large-scale flooding with submerged roads...\" }\n"
         "```\n\n"
         "Use `GET /models` to explore all available backends and their output schemas."
     ),
-    version="3.0.0",
+    version="4.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -71,14 +73,15 @@ def root() -> dict:
     """Confirm the server is running and return the active endpoints."""
     return {
         "status":  "running",
-        "version": "3.0.0",
-        "active_models": ["clip", "blip2", "llava"],
+        "version": "4.0.0",
+        "active_models": ["clip", "blip2", "llava", "qwen"],
         "endpoints": {
             "docs":          "/docs",
             "models":        "/models",
             "predict_clip":  "/predict/clip",
             "predict_blip2": "/predict/blip2",
             "predict_llava": "/predict/llava",
+            "predict_qwen":  "/predict/qwen",
         },
     }
 

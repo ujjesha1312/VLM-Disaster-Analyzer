@@ -10,6 +10,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from backend.services.clip_service   import run as clip_run
 from backend.services.blip2_service  import run as blip2_run
 from backend.services.llava_service  import run as llava_run
+from backend.services.qwen_service   import run as qwen_run
 from backend.services.gpt4v_service  import run as gpt4v_run
 
 router = APIRouter()
@@ -23,6 +24,7 @@ _DISPATCH = {
     "clip":  clip_run,
     "blip2": blip2_run,
     "llava": llava_run,
+    "qwen":  qwen_run,
     "gpt4v": gpt4v_run,
 }
 
@@ -80,6 +82,14 @@ def list_models():
 
             "llava": {
                 "purpose": "Visual scene reasoning and explanation",
+                "output_keys": [
+                    "model",
+                    "response"
+                ]
+            },
+
+            "qwen": {
+                "purpose": "Structured multimodal scene understanding (Qwen2-VL-2B)",
                 "output_keys": [
                     "model",
                     "response"
