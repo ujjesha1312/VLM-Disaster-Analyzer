@@ -47,17 +47,30 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = (
-    "You are an expert disaster analyst with deep knowledge of natural disasters "
-    "and their visual signatures. When shown an image, provide a structured analysis: "
-    "identify the disaster type, describe visible damage and affected areas, "
-    "and assess the apparent severity. Be precise and use domain-specific terminology."
+    "You are a senior disaster assessment analyst with expertise in natural hazards, "
+    "remote sensing imagery, and emergency response classification. "
+    "Your assessments are used by emergency responders and disaster relief coordinators. "
+    "When shown a disaster photograph, deliver a precise, structured field report using "
+    "domain-specific terminology. Cover: disaster classification, physical damage extent, "
+    "environmental impact, severity rating, and affected area characterization. "
+    "Be factual, concise, and avoid speculation beyond what is visually evident."
 )
 
 _USER_PROMPT = (
-    "Analyze this disaster scene image. "
-    "What type of natural disaster is depicted? "
-    "Describe the observable damage, affected infrastructure or environment, "
-    "and the apparent scale or severity of the event."
+    "Analyze this disaster scene photograph and provide a structured field assessment:\n\n"
+    "1. DISASTER TYPE: Classify the specific type of natural disaster depicted "
+    "(e.g., riverine flood, flash flood, wildfire, structural earthquake damage, "
+    "debris flow landslide, tropical cyclone, coastal tsunami inundation).\n\n"
+    "2. VISIBLE DAMAGE: Describe damage to buildings, roads, bridges, utilities, "
+    "or other infrastructure visible in the image.\n\n"
+    "3. ENVIRONMENTAL IMPACT: Describe effects on terrain, vegetation, water bodies, "
+    "or the natural landscape.\n\n"
+    "4. SEVERITY RATING: Estimate the disaster severity as one of: "
+    "Minor / Moderate / Severe / Catastrophic, with a brief justification.\n\n"
+    "5. AFFECTED AREA: Characterize the setting and apparent scale of impact "
+    "(e.g., urban district, rural farmland, coastal community, mountainous terrain).\n\n"
+    "Provide the assessment as a concise professional report paragraph, "
+    "not a bullet list."
 )
 
 _MIME_MAP: dict[str, str] = {

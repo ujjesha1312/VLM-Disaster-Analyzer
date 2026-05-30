@@ -33,22 +33,38 @@ processor = CLIPProcessor.from_pretrained(MODEL_PATH)
 # Prompt Engineering
 # -------------------------------------------------------------------
 
+# Semantic natural-language prompts tuned for CLIP zero-shot matching.
+#
+# WHY: CLIP was trained on image-caption pairs, not short labels.
+# Richer, scene-descriptive prompts match the training distribution
+# more closely, increasing cosine similarity scores and raising
+# confidence above the threshold needed for reliable classification.
+#
+# RULE: each prompt must uniquely describe the VISUAL APPEARANCE of
+# that disaster class so CLIP can separate it from adjacent classes.
+# Avoid vague shared words like "damage" or "disaster" alone — every
+# prompt should have at least one distinctive visual anchor.
+#
+# ALIGNMENT: these 5 classes exactly match the filtered evaluation dataset
+# produced by scripts/create_filtered_dataset.py. Adding or removing a
+# prompt requires a matching change to display_labels and the filtered
+# dataset folder structure.
+
 prompts = [
-    "flood disaster",
-    "wildfire disaster",
-    "earthquake destruction",
-    "landslide disaster",
-    "cyclone damage",
-    "tsunami disaster"
+    "a disaster image of severe flooding with submerged roads, vehicles, and buildings",
+    "a disaster image of wildfire and fire damage with visible flames and thick smoke",
+    "a disaster image of earthquake destruction with collapsed buildings and rubble",
+    "a disaster image of landslide and collapsed terrain with debris covering roads",
+    "a disaster image of cyclone damage with uprooted trees and destroyed infrastructure",
 ]
 
+# display_labels must stay 1-to-1 aligned with prompts — API response values.
 display_labels = [
     "Flood",
-    "Wildfire",
+    "Fire",
     "Earthquake",
     "Landslide",
     "Cyclone",
-    "Tsunami"
 ]
 
 

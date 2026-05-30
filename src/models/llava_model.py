@@ -72,13 +72,22 @@ MAX_NEW_TOKENS = 200
 # -------------------------------------------------------------------
 
 # LLaVA-1.5 requires exactly this conversation format.
-# The <image> token is a placeholder the processor replaces with image embeddings.
+# The <image> token is replaced with image embeddings by the processor.
+#
+# Structured prompts consistently outperform open-ended questions for
+# disaster analysis: numbered points force the model to address each
+# assessment dimension rather than producing a single vague sentence.
 
 PROMPT = (
     "USER: <image>\n"
-    "You are analyzing a disaster scene photograph. "
-    "What type of natural disaster is shown? "
-    "Describe the visible damage, affected area, and severity of the conditions.\n"
+    "You are a professional disaster assessment analyst examining a field photograph. "
+    "Analyze this image and provide a structured response covering each of the following:\n"
+    "1. DISASTER TYPE: Identify the specific type of natural disaster depicted.\n"
+    "2. VISIBLE DAMAGE: Describe the damage to buildings, roads, infrastructure, or terrain.\n"
+    "3. ENVIRONMENTAL IMPACT: Describe effects on vegetation, water bodies, or landscape.\n"
+    "4. SEVERITY: Assess the scale and intensity of the disaster (minor / moderate / severe / catastrophic).\n"
+    "5. AFFECTED AREA: Characterize the setting (urban, rural, coastal, mountainous, etc.).\n"
+    "Provide a concise but thorough professional field assessment.\n"
     "ASSISTANT:"
 )
 

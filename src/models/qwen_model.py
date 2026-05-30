@@ -82,7 +82,7 @@ def _load_model():
                     _model = Qwen2VLForConditionalGeneration.from_pretrained(
                         MODEL_PATH,
                         quantization_config=bnb_config,
-                        device_map="auto",
+                        device_map={"": 0},
                         trust_remote_code=True,
                     )
                 else:
@@ -90,7 +90,7 @@ def _load_model():
                         MODEL_PATH,
                         torch_dtype=dtype,
                         low_cpu_mem_usage=True,
-                        device_map="auto",
+                        device_map={"": 0},
                         trust_remote_code=True,
                     )
 
@@ -112,12 +112,20 @@ MAX_NEW_TOKENS = 200
 
 # Qwen2-VL uses a structured chat message format with typed content blocks.
 # Unlike LLaVA's flat prompt string, each content element is a dict.
+#
+# Structured numbered prompts force Qwen to produce a multi-dimensional
+# disaster assessment rather than a single-sentence description, yielding
+# more informative and differentiated outputs compared to other models.
 
 PROMPT = (
-    "Analyze this disaster image in detail. "
-    "What type of natural disaster is occurring? "
-    "Describe the visible damage, the affected environment, "
-    "and any observable impact on infrastructure or human settlements."
+    "You are a professional disaster assessment analyst examining a field photograph. "
+    "Analyze this image and provide a structured response covering each of the following:\n"
+    "1. DISASTER TYPE: Identify the specific type of natural disaster depicted.\n"
+    "2. VISIBLE DAMAGE: Describe damage to buildings, roads, infrastructure, or terrain.\n"
+    "3. ENVIRONMENTAL IMPACT: Describe effects on vegetation, water bodies, or landscape.\n"
+    "4. SEVERITY: Assess the scale and intensity (minor / moderate / severe / catastrophic).\n"
+    "5. AFFECTED AREA: Characterize the setting (urban, rural, coastal, mountainous, etc.).\n"
+    "Provide a concise but comprehensive professional field assessment."
 )
 
 

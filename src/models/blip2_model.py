@@ -62,7 +62,25 @@ def _load_model():
 # Inference Settings
 # -------------------------------------------------------------------
 
-MAX_NEW_TOKENS = 100
+MAX_NEW_TOKENS = 120
+
+
+# -------------------------------------------------------------------
+# Caption Prompt
+# -------------------------------------------------------------------
+
+# Conditional captioning: supplying a text prefix steers BLIP-2's
+# OPT decoder toward disaster-domain vocabulary instead of generic
+# object descriptions. The model completes the sentence from the prefix.
+#
+# Format: "Question: <question> Answer:" is the standard BLIP-2 VQA
+# format for the OPT decoder and produces focused, factual responses.
+
+PROMPT = (
+    "Question: What natural disaster is shown in this image "
+    "and what damage or environmental impact is visible? "
+    "Answer:"
+)
 
 
 # -------------------------------------------------------------------
@@ -90,13 +108,14 @@ def predict_caption(image_path):
 
 
     # ---------------------------------------------------------------
-    # Process image
+    # Process image + prompt
     # ---------------------------------------------------------------
 
-    # BLIP-2 accepts image only for unconditional captioning.
-    # Inputs moved to device to match model placement.
+    # Conditional captioning: pass both the prompt and image so the
+    # OPT decoder generates a disaster-specific response continuation.
 
     inputs = processor(
+        text=PROMPT,
         images=image,
         return_tensors="pt"
     ).to(device)
@@ -115,14 +134,16 @@ def predict_caption(image_path):
 
 
     # ---------------------------------------------------------------
-    # Decode output
+    # Decode output — trim input tokens
     # ---------------------------------------------------------------
 
-    # BLIP-2 uses batch_decode (returns list) — take first element
-    # This differs from original BLIP which used decode on ids[0]
+    # model.generate() returns full sequence (prompt + generated).
+    # Slice off the input token IDs so only the new caption is decoded.
+
+    trimmed = generated_ids[:, inputs.input_ids.shape[1]:]
 
     caption = processor.batch_decode(
-        generated_ids,
+        trimmed,
         skip_special_tokens=True
     )[0].strip()
 

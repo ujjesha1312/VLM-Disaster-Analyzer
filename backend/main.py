@@ -15,6 +15,7 @@ import os
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.predict import router as predict_router
 
@@ -61,6 +62,14 @@ app = FastAPI(
     version="5.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+)
+
+# Allow the React dev server (port 5173) and any production origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # All VLM endpoints live under the predict router.
