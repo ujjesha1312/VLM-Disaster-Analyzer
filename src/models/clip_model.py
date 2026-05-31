@@ -15,9 +15,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Local Model Path
 # -------------------------------------------------------------------
 
-MODEL_PATH = str(
-    Path(__file__).resolve().parent.parent.parent / "models" / "clip-vit-base-patch32"
-)
+MODEL_PATH = "openai/clip-vit-base-patch32"
 
 
 # -------------------------------------------------------------------
