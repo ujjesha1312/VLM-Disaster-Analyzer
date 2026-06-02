@@ -49,22 +49,34 @@ processor = CLIPProcessor.from_pretrained(MODEL_PATH)
 # dataset folder structure.
 
 prompts = [
-    "a disaster image of severe flooding with submerged roads, vehicles, and buildings",
-    "a disaster image of wildfire and fire damage with visible flames and thick smoke",
-    "a disaster image of earthquake destruction with collapsed buildings and rubble",
-    "a disaster image of landslide and collapsed terrain with debris covering roads",
-    "a disaster image of cyclone damage with uprooted trees and destroyed infrastructure",
+    "an image showing earthquake damage with collapsed buildings and rubble",
+    "an image showing damaged infrastructure such as roads, bridges, or buildings",
+    "an image showing injured or affected people after a disaster",
+    "an image of a wildfire burning vegetation and forests",
+    "an image of an urban fire affecting buildings and city areas",
+    "an image showing flood or water disaster with submerged areas",
+    "an image showing drought conditions with dry cracked land",
+    "an image showing a landslide with collapsed terrain and debris",
+    "an image of a forest without disaster",
+    "an image of buildings and streets without disaster",
+    "an image of the sea or ocean",
+    "an image showing people in normal conditions"
 ]
 
-# display_labels must stay 1-to-1 aligned with prompts — API response values.
 display_labels = [
-    "Flood",
-    "Fire",
     "Earthquake",
+    "Infrastructure Damage",
+    "Human Damage",
+    "Wild Fire",
+    "Urban Fire",
+    "Water Disaster",
+    "Drought",
     "Landslide",
-    "Cyclone",
+    "Forest",
+    "Buildings and Street",
+    "Sea",
+    "Human"
 ]
-
 
 # -------------------------------------------------------------------
 # Prediction Function
