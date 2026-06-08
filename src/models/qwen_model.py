@@ -187,9 +187,11 @@ def predict_response(image_path):
     # ---------------------------------------------------------------
 
     with torch.no_grad():
-        generated_ids = model.generate(
+        generated = model.generate(
             **inputs,
-            max_new_tokens=MAX_NEW_TOKENS
+            max_new_tokens=MAX_NEW_TOKENS,
+            output_scores=True,
+            return_dict_in_generate=True
         )
 
 
@@ -202,7 +204,7 @@ def predict_response(image_path):
 
     trimmed = [
         out[len(inp):]
-        for inp, out in zip(inputs.input_ids, generated_ids)
+        for inp, out in zip(inputs.input_ids, generated.sequences)
     ]
 
     response = processor.batch_decode(
@@ -213,11 +215,28 @@ def predict_response(image_path):
 
 
     # ---------------------------------------------------------------
+    # Generation confidence from per-token probabilities
+    # ---------------------------------------------------------------
+
+    token_probs = []
+
+    for score in generated.scores:
+        probs = torch.softmax(score.float(), dim=-1)
+        token_probs.append(probs.max().item())
+
+    confidence = (
+        sum(token_probs) / len(token_probs) * 100
+        if token_probs else 0
+    )
+
+
+    # ---------------------------------------------------------------
     # Debug logging
     # ---------------------------------------------------------------
 
     print("\nQwen2-VL Response:")
     print(response)
+    print(f"Confidence: {round(confidence, 2)}%")
 
 
     # ---------------------------------------------------------------
@@ -225,8 +244,9 @@ def predict_response(image_path):
     # ---------------------------------------------------------------
 
     return {
-        "model":    "Qwen-VL",
-        "response": response,
+        "model":      "Qwen-VL",
+        "response":   response,
+        "confidence": round(confidence, 2),
     }
 
 
@@ -242,5 +262,6 @@ if __name__ == "__main__":
 
     print("\nScene Understanding Result")
     print("-------------------------")
-    print(f"Model    : {result['model']}")
-    print(f"Response : {result['response']}")
+    print(f"Model      : {result['model']}")
+    print(f"Response   : {result['response']}")
+    print(f"Confidence : {result['confidence']}%")

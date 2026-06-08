@@ -125,9 +125,11 @@ def predict_caption(image_path):
 
     with torch.no_grad():
 
-        generated_ids = model.generate(
+        generated = model.generate(
             **inputs,
-            max_new_tokens=MAX_NEW_TOKENS
+            max_new_tokens=MAX_NEW_TOKENS,
+            output_scores=True,
+            return_dict_in_generate=True
         )
 
 
@@ -138,7 +140,7 @@ def predict_caption(image_path):
     # model.generate() returns full sequence (prompt + generated).
     # Slice off the input token IDs so only the new caption is decoded.
 
-    trimmed = generated_ids[:, inputs.input_ids.shape[1]:]
+    trimmed = generated.sequences[:, inputs.input_ids.shape[1]:]
 
     caption = processor.batch_decode(
         trimmed,
@@ -147,11 +149,28 @@ def predict_caption(image_path):
 
 
     # ---------------------------------------------------------------
+    # Generation confidence from per-token probabilities
+    # ---------------------------------------------------------------
+
+    token_probs = []
+
+    for score in generated.scores:
+        probs = torch.softmax(score.float(), dim=-1)
+        token_probs.append(probs.max().item())
+
+    confidence = (
+        sum(token_probs) / len(token_probs) * 100
+        if token_probs else 0
+    )
+
+
+    # ---------------------------------------------------------------
     # Debug logging
     # ---------------------------------------------------------------
 
     print("\nBLIP-2 Caption:")
     print(caption)
+    print(f"Confidence: {round(confidence, 2)}%")
 
 
     # ---------------------------------------------------------------
@@ -160,7 +179,8 @@ def predict_caption(image_path):
 
     return {
         "model": "BLIP-2",
-        "caption": caption
+        "caption": caption,
+        "confidence": round(confidence, 2)
     }
 
 
@@ -176,5 +196,6 @@ if __name__ == "__main__":
 
     print("\nCaption Result")
     print("-------------------------")
-    print(f"Model   : {result['model']}")
-    print(f"Caption : {result['caption']}")
+    print(f"Model      : {result['model']}")
+    print(f"Caption    : {result['caption']}")
+    print(f"Confidence : {result['confidence']}%")

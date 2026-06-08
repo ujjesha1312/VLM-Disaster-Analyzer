@@ -139,7 +139,9 @@ def predict_response(image_path):
 
         output = model.generate(
             **inputs,
-            max_new_tokens=MAX_NEW_TOKENS
+            max_new_tokens=MAX_NEW_TOKENS,
+            output_scores=True,
+            return_dict_in_generate=True
         )
 
 
@@ -148,7 +150,7 @@ def predict_response(image_path):
     # ---------------------------------------------------------------
 
     full_text = processor.decode(
-        output[0],
+        output.sequences[0],
         skip_special_tokens=True
     )
 
@@ -167,11 +169,28 @@ def predict_response(image_path):
 
 
     # ---------------------------------------------------------------
+    # Generation confidence from per-token probabilities
+    # ---------------------------------------------------------------
+
+    token_probs = []
+
+    for score in output.scores:
+        probs = torch.softmax(score.float(), dim=-1)
+        token_probs.append(probs.max().item())
+
+    confidence = (
+        sum(token_probs) / len(token_probs) * 100
+        if token_probs else 0
+    )
+
+
+    # ---------------------------------------------------------------
     # Debug logging
     # ---------------------------------------------------------------
 
     print("\nLLaVA Response:")
     print(response)
+    print(f"Confidence: {round(confidence, 2)}%")
 
 
     # ---------------------------------------------------------------
@@ -180,7 +199,8 @@ def predict_response(image_path):
 
     return {
         "model": "LLaVA",
-        "response": response
+        "response": response,
+        "confidence": round(confidence, 2)
     }
 
 
@@ -196,5 +216,6 @@ if __name__ == "__main__":
 
     print("\nReasoning Result")
     print("-------------------------")
-    print(f"Model    : {result['model']}")
-    print(f"Response : {result['response']}")
+    print(f"Model      : {result['model']}")
+    print(f"Response   : {result['response']}")
+    print(f"Confidence : {result['confidence']}%")
