@@ -88,7 +88,7 @@ def _load_model():
                         MODEL_PATH,
                         torch_dtype=dtype,
                         low_cpu_mem_usage=True,
-                        device_map={"": 0},
+                        device_map="auto",
                         trust_remote_code=True,
                     )
 

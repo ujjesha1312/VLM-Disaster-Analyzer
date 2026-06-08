@@ -35,20 +35,24 @@ _DISPATCH = {
 
 _ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
+    "image/jpg",               # Some clients omit the 'e'
     "image/png",
     "image/bmp",
     "image/webp",
     "image/tiff",
+    "application/octet-stream",  # Browser fallback; PIL validates actual content
 }
 
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
 _CONTENT_TYPE_TO_SUFFIX = {
-    "image/jpeg": ".jpg",
-    "image/png":  ".png",
-    "image/bmp":  ".bmp",
-    "image/webp": ".webp",
-    "image/tiff": ".tiff",
+    "image/jpeg":              ".jpg",
+    "image/jpg":               ".jpg",
+    "image/png":               ".png",
+    "image/bmp":               ".bmp",
+    "image/webp":              ".webp",
+    "image/tiff":              ".tiff",
+    "application/octet-stream": ".jpg",
 }
 
 
@@ -76,7 +80,8 @@ def list_models():
                 "purpose": "Advanced multimodal image captioning (BLIP-2)",
                 "output_keys": [
                     "model",
-                    "caption"
+                    "caption",
+                    "confidence"
                 ]
             },
 
@@ -84,7 +89,8 @@ def list_models():
                 "purpose": "Visual scene reasoning and explanation",
                 "output_keys": [
                     "model",
-                    "response"
+                    "response",
+                    "confidence"
                 ]
             },
 
@@ -92,7 +98,8 @@ def list_models():
                 "purpose": "Structured multimodal scene understanding (Qwen2-VL-2B)",
                 "output_keys": [
                     "model",
-                    "response"
+                    "response",
+                    "confidence"
                 ]
             },
 
@@ -131,7 +138,8 @@ async def predict(
     # Validate image type
     # ---------------------------------------------------------------
 
-    if file.content_type not in _ALLOWED_CONTENT_TYPES:
+    # Allow None (FastAPI couldn't parse content-type) — PIL validates.
+    if file.content_type is not None and file.content_type not in _ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=415,
             detail="Unsupported image type"
@@ -183,6 +191,15 @@ async def predict(
         raise HTTPException(
             status_code=503,
             detail=f"Service not configured: {exc}"
+        )
+
+    except ValueError as exc:
+
+        # PIL rejected the file as a non-image or the file is corrupted.
+        # 400 = Bad Request — the client sent unusable data.
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image: {exc}"
         )
 
     except Exception as exc:

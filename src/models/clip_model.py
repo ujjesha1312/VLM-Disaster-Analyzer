@@ -1,6 +1,7 @@
 from transformers import CLIPProcessor, CLIPModel
 from pathlib import Path
 from PIL import Image
+import threading
 import torch
 
 
@@ -19,12 +20,33 @@ MODEL_PATH = "openai/clip-vit-base-patch32"
 
 
 # -------------------------------------------------------------------
-# Load CLIP Model
+# Lazy Loading Setup
 # -------------------------------------------------------------------
 
-model = CLIPModel.from_pretrained(MODEL_PATH).to(device)
+# CLIP is loaded on the first inference request and cached for all
+# subsequent requests. This keeps server startup instant and matches
+# the loading pattern used by BLIP-2, LLaVA, and Qwen.
 
-processor = CLIPProcessor.from_pretrained(MODEL_PATH)
+_model:     CLIPModel     | None = None
+_processor: CLIPProcessor | None = None
+_lock = threading.Lock()
+
+
+# -------------------------------------------------------------------
+# Model Loader (lazy singleton with double-checked locking)
+# -------------------------------------------------------------------
+
+def _load_model():
+    global _model, _processor
+
+    if _model is None:
+        with _lock:
+            if _model is None:
+                _processor = CLIPProcessor.from_pretrained(MODEL_PATH)
+                _model     = CLIPModel.from_pretrained(MODEL_PATH).to(device)
+                _model.eval()
+
+    return _model, _processor
 
 
 # -------------------------------------------------------------------
@@ -83,6 +105,13 @@ display_labels = [
 # -------------------------------------------------------------------
 
 def predict_disaster(image_path):
+
+    # ---------------------------------------------------------------
+    # Ensure model is loaded (no-op after first call)
+    # ---------------------------------------------------------------
+
+    model, processor = _load_model()
+
 
     # ---------------------------------------------------------------
     # Load image

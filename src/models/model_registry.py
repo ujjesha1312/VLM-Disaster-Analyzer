@@ -8,7 +8,7 @@ model modules directly.
 Registered models
 -----------------
 clip    openai/clip-vit-base-patch32   zero-shot classification
-blip    blip-image-captioning-base     image captioning
+blip2   Salesforce/blip2-opt-2.7b      image captioning + confidence
 llava   llava-hf/llava-1.5-7b-hf      visual scene reasoning
 qwen    Qwen/Qwen2-VL-2B-Instruct      multimodal visual analysis
 gpt4v   gpt-4o  (OpenAI API)           cloud advanced reasoning
@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 
 _REGISTRY: dict[str, str] = {
     "clip":  "models.clip_model",
-    "blip":  "models.blip_model",
+    "blip2": "models.blip2_model",
     "llava": "models.llava_model",
-    "qwen":  "models.qwen_model",    # qwen_model.py (not qwen_vl_model.py)
+    "qwen":  "models.qwen_model",
     "gpt4v": "models.gpt4v_model",
 }
 
@@ -45,11 +45,11 @@ MODEL_INFO: dict[str, dict] = {
         "requires_gpu":     False,
         "requires_api_key": False,
     },
-    "blip": {
-        "name":             "BLIP",
-        "source":           "Salesforce/blip-image-captioning-base",
-        "purpose":          "Natural language image captioning",
-        "output":           "caption",
+    "blip2": {
+        "name":             "BLIP-2",
+        "source":           "Salesforce/blip2-opt-2.7b",
+        "purpose":          "Advanced multimodal image captioning",
+        "output":           "caption + confidence",
         "requires_gpu":     False,
         "requires_api_key": False,
     },
