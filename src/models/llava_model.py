@@ -1,8 +1,16 @@
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import sys
 import threading
 import torch
+
+# Make src/ importable when this file is run standalone.
+_SRC = Path(__file__).resolve().parent.parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from utils.metrics import confidence_to_level  # noqa: E402
 
 
 # -------------------------------------------------------------------
@@ -66,28 +74,49 @@ MAX_NEW_TOKENS = 200
 
 
 # -------------------------------------------------------------------
-# Visual Reasoning Prompt
+# Structured Disaster Assessment Prompt
 # -------------------------------------------------------------------
 
 # LLaVA-1.5 requires exactly this conversation format.
 # The <image> token is replaced with image embeddings by the processor.
 #
-# Structured prompts consistently outperform open-ended questions for
-# disaster analysis: numbered points force the model to address each
-# assessment dimension rather than producing a single vague sentence.
+# Enforcing a strict labeled-field format makes outputs machine-parseable
+# while preserving the per-token probability confidence scoring — only
+# the prompt text changes, not the generation/scoring logic.
 
 PROMPT = (
     "USER: <image>\n"
-    "You are a professional disaster assessment analyst examining a field photograph. "
-    "Analyze this image and provide a structured response covering each of the following:\n"
-    "1. DISASTER TYPE: Identify the specific type of natural disaster depicted.\n"
-    "2. VISIBLE DAMAGE: Describe the damage to buildings, roads, infrastructure, or terrain.\n"
-    "3. ENVIRONMENTAL IMPACT: Describe effects on vegetation, water bodies, or landscape.\n"
-    "4. SEVERITY: Assess the scale and intensity of the disaster (minor / moderate / severe / catastrophic).\n"
-    "5. AFFECTED AREA: Characterize the setting (urban, rural, coastal, mountainous, etc.).\n"
-    "Provide a concise but thorough professional field assessment.\n"
+    "Analyze this disaster image and respond ONLY in this exact format:\n"
+    "DISASTER TYPE: [type]\n"
+    "SEVERITY: [Critical/High/Moderate/Low]\n"
+    "AFFECTED AREA: [description]\n"
+    "INFRASTRUCTURE DAMAGE: [Yes/No - description]\n"
+    "RECOMMENDED ACTION: [action]\n"
     "ASSISTANT:"
 )
+
+
+# -------------------------------------------------------------------
+# Response Parser
+# -------------------------------------------------------------------
+
+_FIELD_MAP = {
+    "DISASTER TYPE":       "disaster_type",
+    "SEVERITY":            "severity",
+    "AFFECTED AREA":       "affected_areas",
+    "INFRASTRUCTURE DAMAGE": "infrastructure_damage",
+    "RECOMMENDED ACTION":  "recommended_action",
+}
+
+
+def _parse_fields(text: str) -> dict:
+    fields = {v: "" for v in _FIELD_MAP.values()}
+    for line in text.splitlines():
+        for label, key in _FIELD_MAP.items():
+            if line.startswith(label + ":"):
+                fields[key] = line[len(label) + 1:].strip()
+                break
+    return fields
 
 
 # -------------------------------------------------------------------
@@ -182,6 +211,7 @@ def predict_response(image_path):
         sum(token_probs) / len(token_probs) * 100
         if token_probs else 0
     )
+    confidence_score = round(confidence, 2)
 
 
     # ---------------------------------------------------------------
@@ -190,17 +220,23 @@ def predict_response(image_path):
 
     print("\nLLaVA Response:")
     print(response)
-    print(f"Confidence: {round(confidence, 2)}%")
+    print(f"Confidence: {confidence_score}%")
 
 
     # ---------------------------------------------------------------
-    # Return response
+    # Parse labeled fields and return structured metrics
     # ---------------------------------------------------------------
+
+    fields = _parse_fields(response)
 
     return {
         "model": "LLaVA",
-        "response": response,
-        "confidence": round(confidence, 2)
+        "metrics": {
+            **fields,
+            "confidence_score": confidence_score,
+            "confidence_level": confidence_to_level(confidence_score),
+            "raw_assessment":   response,
+        }
     }
 
 
@@ -216,6 +252,7 @@ if __name__ == "__main__":
 
     print("\nReasoning Result")
     print("-------------------------")
-    print(f"Model      : {result['model']}")
-    print(f"Response   : {result['response']}")
-    print(f"Confidence : {result['confidence']}%")
+    print(f"Model         : {result['model']}")
+    print(f"Disaster Type : {result['metrics']['disaster_type']}")
+    print(f"Severity      : {result['metrics']['severity']}")
+    print(f"Confidence    : {result['metrics']['confidence_score']}%")

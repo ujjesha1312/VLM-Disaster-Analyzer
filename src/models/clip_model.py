@@ -1,8 +1,16 @@
 from transformers import CLIPProcessor, CLIPModel
 from pathlib import Path
 from PIL import Image
+import sys
 import threading
 import torch
+
+# Make src/ importable when this file is run standalone.
+_SRC = Path(__file__).resolve().parent.parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from utils.metrics import confidence_to_level  # noqa: E402
 
 
 # -------------------------------------------------------------------
@@ -152,19 +160,26 @@ def predict_disaster(image_path):
     # ---------------------------------------------------------------
 
     logits_per_image = outputs.logits_per_image
-
     probs = logits_per_image.softmax(dim=1)
 
 
     # ---------------------------------------------------------------
-    # Best prediction
+    # Top-3 predictions
     # ---------------------------------------------------------------
 
-    predicted_index = probs.argmax().item()
+    k = min(3, len(display_labels))
+    top_k = probs[0].topk(k)
+    top3_indices = top_k.indices.tolist()
+    top3_values  = top_k.values.tolist()
 
-    prediction = display_labels[predicted_index]
+    predicted_index  = top3_indices[0]
+    prediction       = display_labels[predicted_index]
+    confidence_score = round(top3_values[0] * 100, 2)
 
-    confidence = probs[0][predicted_index].item()
+    top_3_predictions = [
+        {"label": display_labels[i], "score": round(v * 100, 2)}
+        for i, v in zip(top3_indices, top3_values)
+    ]
 
 
     # ---------------------------------------------------------------
@@ -172,22 +187,22 @@ def predict_disaster(image_path):
     # ---------------------------------------------------------------
 
     print("\nPrediction Scores:")
-
     for i, label in enumerate(display_labels):
-        print(
-            f"{label}: "
-            f"{probs[0][i].item() * 100:.2f}%"
-        )
+        print(f"{label}: {probs[0][i].item() * 100:.2f}%")
 
 
     # ---------------------------------------------------------------
-    # Return JSON-compatible response
+    # Return structured metrics
     # ---------------------------------------------------------------
 
     return {
         "model": "CLIP",
-        "prediction": prediction,
-        "confidence": round(confidence * 100, 2)
+        "metrics": {
+            "disaster_type":      prediction,
+            "confidence_score":   confidence_score,
+            "confidence_level":   confidence_to_level(confidence_score),
+            "top_3_predictions":  top_3_predictions,
+        }
     }
 
 
@@ -204,5 +219,7 @@ if __name__ == "__main__":
     print("\nPrediction Result")
     print("-------------------------")
     print(f"Model      : {result['model']}")
-    print(f"Prediction : {result['prediction']}")
-    print(f"Confidence : {result['confidence']}%")
+    print(f"Disaster   : {result['metrics']['disaster_type']}")
+    print(f"Confidence : {result['metrics']['confidence_score']}%")
+    print(f"Level      : {result['metrics']['confidence_level']}")
+    print(f"Top-3      : {result['metrics']['top_3_predictions']}")

@@ -1,14 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, Fragment } from "react";
+import { applyTheme, resetTheme, getTheme } from "./themeEngine";
+import SplashScreen from "./SplashScreen";
 
 // ---------------------------------------------------------------------------
 // Backend
 // ---------------------------------------------------------------------------
 
-const API_BASE_URL     = "https://providing-earthy-phonebook.ngrok-free.dev";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MODEL_TIMEOUT_MS = 180_000;
 const CHAT_TIMEOUT_MS  =  60_000;
-const MAX_FILE_SIZE_MB = 10;
-const MAX_FILE_SIZE    = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILE_SIZE_MB  = 10;
+const MAX_FILE_SIZE     = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_VIDEO_FILE_MB = 500;
+const MAX_VIDEO_FILE    = MAX_VIDEO_FILE_MB * 1024 * 1024;
+const VIDEO_EXTENSIONS  = new Set(["mp4", "avi", "mov", "mkv", "webm"]);
 
 // ---------------------------------------------------------------------------
 // Model registry
@@ -22,10 +27,12 @@ const MODELS = [
 ];
 
 const MODEL_TIMELINE_LABEL = {
-  clip:  "CLIP-ViT classification complete",
-  blip2: "BLIP-2 caption generated",
-  llava: "LLaVA reasoning complete",
-  qwen:  "Qwen2-VL scene analysis complete",
+  clip:  (data) => data?.metrics?.disaster_type
+    ? `I'm reading this as ${data.metrics.disaster_type.toLowerCase()} — ${data.metrics.confidence_score}% confidence`
+    : "Initial scene classification complete",
+  blip2: (_d) => "Scene description gathered",
+  llava: (_d) => "Damage indicators and structural analysis complete",
+  qwen:  (_d) => "Detailed field analysis complete",
 };
 
 // ---------------------------------------------------------------------------
@@ -74,53 +81,129 @@ const ENVIRONMENTAL_IMPACTS = {
 
 const SUGGESTED_BY_TYPE = {
   Flood: [
-    "How severe is this flood event?",
-    "Are evacuation measures immediately needed?",
-    "What infrastructure is most at risk?",
-    "How long could floodwaters persist in this area?",
-    "What rescue operations should be prioritised?",
+    "What resources are required for this flood response?",
+    "What infrastructure is at immediate risk?",
+    "What should first responders prioritise?",
+    "What are the environmental contamination risks?",
+    "What actions are needed in the next 24 hours?",
   ],
   Fire: [
-    "How fast might this fire spread?",
-    "What aerial and ground resources should be deployed?",
-    "Which communities or areas are most at risk?",
-    "Are there immediate civilian evacuation needs?",
-    "What containment strategy is most effective here?",
+    "What aerial and ground resources are required?",
+    "What infrastructure is in the fire's path?",
+    "What should incident commanders prioritise?",
+    "What are the air quality and watershed risks?",
+    "What actions are needed in the next 24 hours?",
   ],
   Earthquake: [
-    "How severe is the structural damage visible?",
-    "Are there likely trapped survivors requiring extraction?",
-    "What aftershock risk should be expected?",
+    "What search and rescue resources are required?",
     "Which critical infrastructure has been compromised?",
-    "What medical and rescue resources are needed?",
+    "What should first responders prioritise?",
+    "What are the secondary hazard risks?",
+    "What actions are needed in the next 24 hours?",
   ],
   Landslide: [
-    "What likely triggered this landslide?",
-    "Is there risk of secondary slides in the area?",
-    "Which roads or transport routes are blocked?",
-    "What communities are within the impact zone?",
-    "What heavy machinery or recovery operations are needed?",
+    "What recovery and clearance resources are required?",
+    "Which transport routes are blocked or at risk?",
+    "What should response teams prioritise?",
+    "What is the risk of secondary slides?",
+    "What actions are needed in the next 24 hours?",
   ],
   Cyclone: [
-    "How intense are the winds in this event?",
-    "Which coastal areas face the greatest storm surge risk?",
-    "When should evacuation operations begin?",
-    "What infrastructure is most vulnerable to wind damage?",
-    "What is the projected duration and path of this system?",
+    "What resources are required for this cyclone response?",
+    "What coastal infrastructure faces the greatest risk?",
+    "What should emergency coordinators prioritise?",
+    "What are the storm surge and flooding risks?",
+    "What actions are needed in the next 24 hours?",
   ],
 };
 
 const DEFAULT_SUGGESTED = [
-  "How severe is this disaster?",
-  "Are people at immediate risk?",
-  "What infrastructure has been damaged?",
-  "What emergency resources should be deployed?",
-  "What response actions are recommended?",
+  "What resources are required?",
+  "What infrastructure is affected?",
+  "What should first responders prioritise?",
+  "What are the environmental risks?",
+  "What actions are needed in the next 24 hours?",
 ];
 
 function getSuggestedQuestions(eventType) {
   return SUGGESTED_BY_TYPE[eventType] ?? DEFAULT_SUGGESTED;
 }
+
+// ---------------------------------------------------------------------------
+// Persistent memory (localStorage — all data stays in the browser)
+// ---------------------------------------------------------------------------
+
+const MEMORY_KEY      = "dia_memory";
+const MAX_ASSESSMENTS = 10;
+const DEFAULT_MEMORY  = { totalIncidents: 0, lastVisit: null, assessments: [] };
+
+function loadMemory() {
+  try {
+    const raw = localStorage.getItem(MEMORY_KEY);
+    return raw ? { ...DEFAULT_MEMORY, ...JSON.parse(raw) } : { ...DEFAULT_MEMORY };
+  } catch { return { ...DEFAULT_MEMORY }; }
+}
+
+function saveMemory(m) {
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch { /* storage full — ignore */ }
+}
+
+function formatTimeAgo(iso) {
+  const diff  = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days  = Math.floor(diff / 86_400_000);
+  if (mins  <  2) return "just now";
+  if (mins  < 60) return `${mins} min ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days  <  7) return `${days} day${days !== 1 ? "s" : ""} ago`;
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+async function generateThumb(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const S = 80;
+      const canvas = document.createElement("canvas");
+      canvas.width  = S;
+      canvas.height = S;
+      const c = canvas.getContext("2d");
+      const scale = Math.min(S / img.width, S / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      c.fillStyle = "#543A14";
+      c.fillRect(0, 0, S, S);
+      c.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.65));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+const INITIAL_MEMORY = loadMemory();
+
+// ---------------------------------------------------------------------------
+// Name personalization
+// ---------------------------------------------------------------------------
+
+const NAME_KEY = "dia_username";
+
+function getTimeGreeting() {
+  const h = new Date().getHours();
+  return h >= 5  && h < 12 ? "Good morning" :
+         h >= 12 && h < 17 ? "Good afternoon" :
+         h >= 17 && h < 22 ? "Good evening" : "Hello";
+}
+
+const IDLE_STATUS_MESSAGES = [
+  "Intelligence systems online",
+  "Ready for analysis",
+  "Awaiting imagery",
+  "Situational awareness active",
+];
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -133,9 +216,8 @@ async function callModel(endpoint, file) {
   fd.append("file", file);
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method:  "POST",
-      headers: { "ngrok-skip-browser-warning": "true" },
-      body:    fd,
+      method: "POST",
+      body:   fd,
       signal:  controller.signal,
     });
     if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -155,10 +237,7 @@ async function callChat(question, context, history) {
   try {
     const res = await fetch(`${API_BASE_URL}/chat`, {
       method:  "POST",
-      headers: {
-        "Content-Type":               "application/json",
-        "ngrok-skip-browser-warning": "true",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question,
         context: {
@@ -185,44 +264,100 @@ async function callChat(question, context, history) {
   }
 }
 
+async function callVideoAnalysis(file) {
+  const fd = new FormData();
+  fd.append("video", file);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const res = await fetch(`${API_BASE_URL}/predict/video/analyze`, {
+      method: "POST",
+      body:   fd,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `Video analysis failed (HTTP ${res.status})`);
+    }
+    return res.json();
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Request timed out after 2 minutes");
+    if (err.message.toLowerCase().includes("failed to fetch")) throw new Error("Network unreachable");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // DisasterContext builder
 // ---------------------------------------------------------------------------
 
 function buildDisasterContext(outputs) {
-  const eventType     = outputs.clip?.prediction  ?? "Unknown Event";
-  const confidence    = outputs.clip?.confidence  ?? 0;
-  const caption       = outputs.blip2?.caption    ?? "";
-  const reasoning     = outputs.llava?.response   ?? "";
-  const sceneAnalysis = outputs.qwen?.response    ?? "";
+  const eventType     = outputs.clip?.metrics?.disaster_type    ?? "Unknown Event";
+  const confidence    = outputs.clip?.metrics?.confidence_score ?? 0;
+  const severity      = outputs.clip?.metrics?.confidence_level ?? "Low";
+  const top3          = outputs.clip?.metrics?.top_3_predictions ?? [];
+  const caption       = outputs.blip2?.metrics?.scene_description ?? "";
+  const keywords      = outputs.blip2?.metrics?.keywords          ?? [];
+  const reasoning     = outputs.llava?.metrics?.raw_assessment    ?? "";
+  const sceneAnalysis = outputs.qwen?.metrics?.raw_analysis       ?? "";
 
-  const severity =
-    confidence > 88 ? "Critical" :
-    confidence > 75 ? "High"     :
-    confidence > 60 ? "Moderate" : "Low";
+  const llavaMetrics = {
+    disaster_type:         outputs.llava?.metrics?.disaster_type          ?? "",
+    severity:              outputs.llava?.metrics?.severity               ?? "",
+    affected_areas:        outputs.llava?.metrics?.affected_areas         ?? "",
+    infrastructure_damage: outputs.llava?.metrics?.infrastructure_damage  ?? "",
+    recommended_action:    outputs.llava?.metrics?.recommended_action     ?? "",
+  };
 
-  const impacts            = IMPACTS[eventType]            ?? ["Environmental and infrastructure damage", "Potential civilian impact", "Service disruption"];
-  const actions            = ACTIONS[eventType]            ?? ["Deploy emergency response teams", "Establish incident command", "Prioritise civilian evacuation"];
-  const infrastructure     = INFRASTRUCTURE[eventType]     ?? ["Critical infrastructure under assessment", "Utility systems at risk"];
-  const humanImpact        = HUMAN_IMPACTS[eventType]      ?? ["Civilian safety under assessment", "Evacuation and medical staging recommended"];
+  const qwenMetrics = {
+    disaster_type:         outputs.qwen?.metrics?.disaster_type          ?? "",
+    severity:              outputs.qwen?.metrics?.severity               ?? "",
+    affected_population:   outputs.qwen?.metrics?.affected_population    ?? "",
+    infrastructure_status: outputs.qwen?.metrics?.infrastructure_status  ?? "",
+    environmental_impact:  outputs.qwen?.metrics?.environmental_impact   ?? "",
+  };
+
+  const impacts             = IMPACTS[eventType]             ?? ["Environmental and infrastructure damage", "Potential civilian impact", "Service disruption"];
+  const actions             = ACTIONS[eventType]             ?? ["Deploy emergency response teams", "Establish incident command", "Prioritise civilian evacuation"];
+  const infrastructure      = INFRASTRUCTURE[eventType]      ?? ["Critical infrastructure under assessment", "Utility systems at risk"];
+  const humanImpact         = HUMAN_IMPACTS[eventType]       ?? ["Civilian safety under assessment", "Evacuation and medical staging recommended"];
   const environmentalImpact = ENVIRONMENTAL_IMPACTS[eventType] ?? ["Environmental assessment in progress", "Contamination risk under evaluation"];
 
-  return { eventType, confidence, caption, reasoning, sceneAnalysis, severity, impacts, actions, infrastructure, humanImpact, environmentalImpact };
+  return { eventType, confidence, severity, top3, caption, keywords, reasoning, sceneAnalysis, llavaMetrics, qwenMetrics, impacts, actions, infrastructure, humanImpact, environmentalImpact };
 }
 
 function buildDescription(ctx) {
   const { eventType, confidence, severity, caption, reasoning } = ctx;
-  const detail = caption
-    ? caption.charAt(0).toUpperCase() + caption.slice(1).replace(/\.$/, "") + "."
+
+  const certainty =
+    confidence > 88 ? "high confidence"
+    : confidence > 75 ? "strong confidence"
+    : confidence > 60 ? "moderate confidence"
+    : "preliminary confidence";
+
+  const observation = caption
+    ? caption.charAt(0).toUpperCase() + caption.slice(1).replace(/\.$/, "")
     : reasoning
-      ? reasoning.split(".")[0] + "."
-      : `${eventType} conditions have been detected.`;
-  const urgency = (severity === "Critical" || severity === "High")
-    ? " Immediate response action is required."
-    : " Ongoing monitoring and precautionary response are advised.";
+      ? reasoning.split(/[.!?]/)[0].trim()
+      : `visual signatures consistent with ${eventType.toLowerCase()} conditions`;
+
+  const urgencyLine =
+    severity === "Critical"
+      ? "This incident requires immediate coordinated emergency response — all operational windows are active."
+      : severity === "High"
+      ? "Prompt deployment of response resources is warranted. Pre-position teams and equipment now."
+      : severity === "Moderate"
+      ? "Active monitoring and precautionary resource staging are recommended."
+      : "Situation is under assessment. Standby protocols apply.";
+
   return (
-    `The uploaded image depicts a ${eventType.toLowerCase()} event — ${detail} ` +
-    `Assessed severity is ${severity.toLowerCase()} with ${confidence}% classification confidence.${urgency}`
+    `I've finished reviewing the scene you shared. I'm reading this as a ${severity.toLowerCase()}-severity ${eventType.toLowerCase()} event ` +
+    `with ${certainty} (${confidence}%). ` +
+    `${observation}. ` +
+    `${urgencyLine} ` +
+    `I've outlined key risks, recommended actions, and impact areas below — ask me anything about this incident.`
   );
 }
 
@@ -231,30 +366,70 @@ function buildDescription(ctx) {
 // ---------------------------------------------------------------------------
 
 function buildFallbackResponse(question, ctx) {
-  const q        = question.toLowerCase();
-  const event    = ctx?.eventType      ?? "disaster";
-  const conf     = ctx?.confidence     ?? 0;
-  const severity = ctx?.severity       ?? "Unknown";
-  const reasoning = ctx?.reasoning     ?? "";
+  const q       = question.toLowerCase();
+  const event   = ctx?.eventType      ?? "the incident";
+  const conf    = ctx?.confidence     ?? 0;
+  const sev     = ctx?.severity       ?? "unknown";
+  const reasoning = ctx?.reasoning    ?? "";
   const scene     = ctx?.sceneAnalysis ?? "";
 
   if (/sever|how bad|intensity|danger/i.test(q))
-    return `This ${event} event is assessed as ${severity} severity (${conf}% CLIP confidence). ${reasoning.split(".")[0] + "." || ""}`;
+    return `Looking at the ${event.toLowerCase()} scene you uploaded, I assess this as ${sev.toLowerCase()} severity — ${conf}% confidence. ${reasoning.split(".")[0] || "The visible damage indicators are consistent with substantial impact conditions"}.`;
 
-  if (/emergency|response|protocol|action|help/i.test(q)) {
+  if (/resource|equip|personnel|deploy/i.test(q)) {
     const list = (ACTIONS[event] ?? []).slice(0, 4).map((a) => `• ${a}`).join("\n");
-    return `Emergency response for ${severity.toLowerCase()} ${event}:\n\n${list}`;
+    return `Based on what I can see in this ${event.toLowerCase()} scene, here are my deployment priorities:\n\n${list}`;
   }
 
-  if (/people|risk|casualt|human|injur/i.test(q))
-    return `Civilian risk for this ${event} event is assessed as ${conf > 80 ? "HIGH" : "MODERATE"}. Immediate evacuation and medical staging are recommended.`;
-
-  if (/impact|environment|damage|infrastructure/i.test(q)) {
-    const list = (IMPACTS[event] ?? []).slice(0, 4).map((i) => `• ${i}`).join("\n");
-    return `Identified impacts of this ${event}:\n\n${list}`;
+  if (/action|response|protocol|24 hour|next step|priorit|what should/i.test(q)) {
+    const list = (ACTIONS[event] ?? []).slice(0, 4).map((a) => `• ${a}`).join("\n");
+    return `Looking at this ${event.toLowerCase()} scene, here are my recommended actions:\n\n${list}`;
   }
 
-  return `Regarding the ${event} event (${conf}% confidence, ${severity} severity): ${scene.split(".")[0] + "." || reasoning.split(".")[0] + "." || ""} How else can I assist?`;
+  if (/people|casualt|human|injur|civilian|evacuati/i.test(q))
+    return `From the image, civilian exposure in this ${event.toLowerCase()} scene appears to be ${conf > 80 ? "HIGH" : "MODERATE"} risk. Immediate evacuation and medical staging should be initiated.`;
+
+  if (/infrastructure|structure|building|road|bridge|damage/i.test(q)) {
+    const list = (INFRASTRUCTURE[event] ?? IMPACTS[event] ?? []).slice(0, 4).map((i) => `• ${i}`).join("\n");
+    return `Looking at the visible infrastructure in this ${event.toLowerCase()} scene, the following is at risk:\n\n${list}`;
+  }
+
+  if (/environment|ecology|water|soil|vegetation|contamin/i.test(q)) {
+    const list = (ENVIRONMENTAL_IMPACTS[event] ?? []).slice(0, 4).map((i) => `• ${i}`).join("\n");
+    return `From what I can see, here's the environmental impact from this ${event.toLowerCase()} scene:\n\n${list}`;
+  }
+
+  const context = scene.split(".")[0] || reasoning.split(".")[0] || "";
+  return `Based on the ${event.toLowerCase()} scene you uploaded (${conf}% confidence, ${sev.toLowerCase()} severity)${context ? `: ${context}.` : "."} What specific aspect of the situation would you like to understand better?`;
+}
+
+// ---------------------------------------------------------------------------
+// Model consensus calculation
+// ---------------------------------------------------------------------------
+
+function computeConsensus(modelOutputs, eventType) {
+  const synonyms = {
+    Flood:      ["flood", "water", "inundated", "submerged", "overflow", "flooded"],
+    Fire:       ["fire", "wildfire", "burning", "blaze", "smoke", "flames"],
+    Earthquake: ["earthquake", "seismic", "collapse", "collapsed", "rubble", "debris", "tremor"],
+    Landslide:  ["landslide", "landslip", "debris", "slope", "mudslide", "mud"],
+    Cyclone:    ["cyclone", "hurricane", "typhoon", "storm", "wind"],
+  };
+
+  const terms = synonyms[eventType] ?? [eventType?.toLowerCase() ?? ""];
+  const matches = (text) => !!text && terms.some((t) => text.toLowerCase().includes(t));
+
+  const checks = {
+    clip:  !!modelOutputs.clip  && !modelOutputs.clip?.error,
+    blip2: matches(modelOutputs.blip2?.metrics?.scene_description),
+    llava: matches(modelOutputs.llava?.metrics?.raw_assessment),
+    qwen:  matches(modelOutputs.qwen?.metrics?.raw_analysis),
+  };
+
+  const count = Object.values(checks).filter(Boolean).length;
+  const level = count === 4 ? "Strong" : count === 3 ? "Moderate" : count >= 2 ? "Mixed" : "Low";
+
+  return { level, count, total: 4, checks };
 }
 
 // ---------------------------------------------------------------------------
@@ -263,10 +438,10 @@ function buildFallbackResponse(question, ctx) {
 
 function severityChipClass(severity) {
   switch (severity) {
-    case "Critical": return "bg-red-500/10 text-red-400 border-red-500/30";
-    case "High":     return "bg-orange-500/10 text-orange-400 border-orange-500/30";
-    case "Moderate": return "bg-yellow-500/10 text-yellow-400 border-yellow-500/30";
-    default:         return "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+    case "Critical": return "bg-red-500/20 text-red-300 border-red-400/40";
+    case "High":     return "bg-orange-500/20 text-orange-300 border-orange-400/40";
+    case "Moderate": return "bg-yellow-500/20 text-yellow-300 border-yellow-400/40";
+    default:         return "bg-emerald-500/20 text-emerald-300 border-emerald-400/40";
   }
 }
 
@@ -274,27 +449,65 @@ function severityChipClass(severity) {
 // EvidencePanel — collapsible model output details inside the briefing
 // ---------------------------------------------------------------------------
 
+function ConfidenceBar({ score, color = "bg-blue-400" }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs text-[#FFF0DC]/70">
+        <span>Confidence</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{score}%</span>
+      </div>
+      <div className="h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(score, 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LevelBadge({ level }) {
+  const cls =
+    level === "Critical" ? "bg-red-500/20 text-red-300 border-red-400/40" :
+    level === "High"     ? "bg-orange-500/20 text-orange-300 border-orange-400/40" :
+    level === "Moderate" ? "bg-yellow-500/20 text-yellow-300 border-yellow-400/40" :
+                           "bg-emerald-500/20 text-emerald-300 border-emerald-400/40";
+  return (
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${cls}`}>{level}</span>
+  );
+}
+
+function KVRow({ label, value }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-2">
+      <span className="text-[#FFF0DC]/70 text-xs shrink-0 w-36">{label}</span>
+      <span className="text-white/80 text-xs">{value}</span>
+    </div>
+  );
+}
+
 function EvidencePanel({ modelOutputs }) {
-  const [open, setOpen] = useState(false);
-  const clip  = modelOutputs.clip  ?? {};
-  const blip2 = modelOutputs.blip2 ?? {};
-  const llava = modelOutputs.llava ?? {};
-  const qwen  = modelOutputs.qwen  ?? {};
+  const [open,     setOpen]     = useState(false);
+  const [llavOpen, setLlavOpen] = useState(false);
+  const [qwenOpen, setQwenOpen] = useState(false);
+
+  const clipM  = modelOutputs.clip?.metrics  ?? {};
+  const blip2M = modelOutputs.blip2?.metrics ?? {};
+  const llavaM = modelOutputs.llava?.metrics ?? {};
+  const qwenM  = modelOutputs.qwen?.metrics  ?? {};
 
   return (
-    <div className="mt-6 border border-[#4A7FA7]/30 rounded-xl overflow-hidden">
+    <div className="mt-6 border border-[#FFF0DC]/30 rounded-xl overflow-hidden">
       <button
-        className="w-full flex items-center justify-between p-4 bg-[#1A3D63] hover:bg-[#234d7a] transition-colors"
+        className="w-full flex items-center justify-between p-4 bg-[#543A14]/60 atm-bubble hover:bg-black/[.02] transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#4A7FA7] text-[18px]">database</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-[#c2c7cc]">
-            View Model Evidence
+          <span className="material-symbols-outlined text-[#FFF0DC] text-[18px]">database</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#FFF0DC]">
+            How I reached this conclusion
           </span>
         </div>
         <span
-          className="material-symbols-outlined text-[#c2c7cc] transition-transform duration-200"
+          className="material-symbols-outlined text-[#FFF0DC] transition-transform duration-200"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         >
           expand_more
@@ -302,58 +515,273 @@ function EvidencePanel({ modelOutputs }) {
       </button>
 
       {open && (
-        <div className="bg-[#050d1a] p-4 space-y-4 divide-y divide-[#4A7FA7]/20 max-h-[380px] overflow-y-auto">
-          {/* CLIP */}
-          <div className="flex justify-between items-start pt-2">
-            <div className="space-y-1">
-              <p className="text-[#4A7FA7] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                CLIP-ViT-L/14
-              </p>
-              {clip.error
-                ? <p className="text-red-400 text-sm italic">Failed — {clip.error}</p>
-                : <p className="text-[#c2c7cc] text-sm">{clip.prediction ?? "—"}</p>
-              }
-            </div>
-            <p className="text-[#dfe3e6] text-xs shrink-0 ml-4" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-              {clip.confidence != null ? `${clip.confidence}% CONF` : "—"}
+        <div className="bg-[#0D0B0B] atm-surface2 p-4 space-y-5 divide-y divide-[#FFF0DC]/10 max-h-[520px] overflow-y-auto">
+
+          {/* ── CLIP ─────────────────────────────────────────────────────────── */}
+          <div className="pt-2 space-y-3">
+            <p className="text-[#FFF0DC] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              CLIP-ViT-L/14
             </p>
+            {modelOutputs.clip?.error ? (
+              <p className="text-red-400 text-sm italic">Failed — {modelOutputs.clip.error}</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-white text-base font-semibold">{clipM.disaster_type ?? "—"}</span>
+                  {clipM.confidence_level && <LevelBadge level={clipM.confidence_level} />}
+                </div>
+                {clipM.confidence_score != null && (
+                  <ConfidenceBar score={clipM.confidence_score} color="bg-blue-400" />
+                )}
+                {clipM.top_3_predictions?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-white/55 uppercase tracking-wider">Top predictions</p>
+                    {clipM.top_3_predictions.map((p) => (
+                      <div key={p.label} className="flex items-center gap-2">
+                        <span className="text-[#FFF0DC] text-xs w-36 shrink-0 truncate">{p.label}</span>
+                        <div className="flex-1 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#F0BB78]/70 rounded-full" style={{ width: `${Math.min(p.score, 100)}%` }} />
+                        </div>
+                        <span className="text-white/55 text-[10px] shrink-0 w-10 text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{p.score}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* BLIP-2 */}
-          <div className="flex flex-col gap-1 pt-4">
-            <p className="text-[#4A7FA7] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          {/* ── BLIP-2 ───────────────────────────────────────────────────────── */}
+          <div className="pt-4 space-y-3">
+            <p className="text-[#FFF0DC] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               BLIP-2 Caption
             </p>
-            {blip2.error
-              ? <p className="text-red-400 text-sm italic">Failed — {blip2.error}</p>
-              : <p className="text-[#c2c7cc] text-sm italic">{blip2.caption ? `"${blip2.caption}"` : "—"}</p>
-            }
+            {modelOutputs.blip2?.error ? (
+              <p className="text-red-400 text-sm italic">Failed — {modelOutputs.blip2.error}</p>
+            ) : (
+              <>
+                <p className="text-white/80 text-sm italic">
+                  {blip2M.scene_description ? `"${blip2M.scene_description}"` : "—"}
+                </p>
+                {blip2M.keywords?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {blip2M.keywords.map((kw) => (
+                      <span key={kw} className="px-2 py-0.5 rounded-full bg-[#543A14]/60 border border-[#FFF0DC]/30 text-[#FFF0DC] text-[11px]">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {blip2M.confidence_score != null && (
+                  <ConfidenceBar score={blip2M.confidence_score} color="bg-violet-400" />
+                )}
+              </>
+            )}
           </div>
 
-          {/* LLaVA */}
-          <div className="flex flex-col gap-1 pt-4">
-            <p className="text-[#4A7FA7] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          {/* ── LLaVA ────────────────────────────────────────────────────────── */}
+          <div className="pt-4 space-y-3">
+            <p className="text-[#FFF0DC] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               LLaVA Reasoning
             </p>
-            {llava.error
-              ? <p className="text-red-400 text-sm italic">Failed — {llava.error}</p>
-              : <p className="text-[#c2c7cc] text-sm">{llava.response ? llava.response.split(".").slice(0, 2).join(".") + "." : "—"}</p>
-            }
+            {modelOutputs.llava?.error ? (
+              <p className="text-red-400 text-sm italic">Failed — {modelOutputs.llava.error}</p>
+            ) : (
+              <>
+                <KVRow label="Disaster Type"         value={llavaM.disaster_type} />
+                <KVRow label="Severity"              value={llavaM.severity} />
+                <KVRow label="Affected Area"         value={llavaM.affected_areas} />
+                <KVRow label="Infrastructure Damage" value={llavaM.infrastructure_damage} />
+                <KVRow label="Recommended Action"    value={llavaM.recommended_action} />
+                {llavaM.confidence_score != null && (
+                  <ConfidenceBar score={llavaM.confidence_score} color="bg-emerald-400" />
+                )}
+                {llavaM.raw_assessment && (
+                  <div>
+                    <button
+                      onClick={() => setLlavOpen((v) => !v)}
+                      className="text-[10px] text-[#FFF0DC] hover:text-[#FFF0DC] flex items-center gap-1 uppercase tracking-wider"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
+                        {llavOpen ? "expand_less" : "expand_more"}
+                      </span>
+                      Full Assessment
+                    </button>
+                    {llavOpen && (
+                      <p className="mt-2 text-[#FFF0DC]/70 text-xs leading-relaxed border-l-2 border-[#FFF0DC]/40 pl-3 text-white/55">
+                        {llavaM.raw_assessment}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Qwen */}
-          <div className="flex flex-col gap-1 pt-4">
-            <p className="text-[#4A7FA7] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          {/* ── Qwen ─────────────────────────────────────────────────────────── */}
+          <div className="pt-4 space-y-3">
+            <p className="text-[#FFF0DC] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               Qwen2-VL Analysis
             </p>
-            {qwen.error
-              ? <p className="text-red-400 text-sm italic">Failed — {qwen.error}</p>
-              : <p className="text-[#c2c7cc] text-sm">{qwen.response ? qwen.response.split(".")[0] + "." : "—"}</p>
-            }
+            {modelOutputs.qwen?.error ? (
+              <p className="text-red-400 text-sm italic">Failed — {modelOutputs.qwen.error}</p>
+            ) : (
+              <>
+                <KVRow label="Disaster Type"         value={qwenM.disaster_type} />
+                <KVRow label="Severity"              value={qwenM.severity} />
+                <KVRow label="Affected Population"   value={qwenM.affected_population} />
+                <KVRow label="Infrastructure Status" value={qwenM.infrastructure_status} />
+                <KVRow label="Environmental Impact"  value={qwenM.environmental_impact} />
+                {qwenM.confidence_score != null && (
+                  <ConfidenceBar score={qwenM.confidence_score} color="bg-orange-400" />
+                )}
+                {qwenM.raw_analysis && (
+                  <div>
+                    <button
+                      onClick={() => setQwenOpen((v) => !v)}
+                      className="text-[10px] text-[#FFF0DC] hover:text-[#FFF0DC] flex items-center gap-1 uppercase tracking-wider"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
+                        {qwenOpen ? "expand_less" : "expand_more"}
+                      </span>
+                      Full Analysis
+                    </button>
+                    {qwenOpen && (
+                      <p className="mt-2 text-[#FFF0DC]/70 text-xs leading-relaxed border-l-2 border-[#FFF0DC]/40 pl-3 text-white/55">
+                        {qwenM.raw_analysis}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// VideoAssessmentPanel — rendered as a chat message for video-briefing type
+// ---------------------------------------------------------------------------
+
+function VideoAssessmentPanel({ msg, videoAnalysis }) {
+  const fi    = videoAnalysis?.file_info;
+  const an    = videoAnalysis?.analysis;
+  const thumb = videoAnalysis?.thumbnail_b64;
+
+  function fmtDuration(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m ? `${m}m ${sec.toString().padStart(2, "0")}s` : `${sec}s`;
+  }
+
+  if (!fi || !an) return null;
+
+  return (
+    <article key={msg.id} className="flex gap-4 items-start message-enter">
+      <div className="w-8 h-8 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mt-1">
+        <span className="material-symbols-outlined text-purple-300"
+          style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>
+          videocam
+        </span>
+      </div>
+
+      <div className="flex-1 space-y-5 pt-1">
+        {/* Header */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+            <h2 className="text-white text-3xl font-bold leading-tight"
+              style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+              Video Assessment
+            </h2>
+            <div className="flex items-center gap-2 pt-1.5">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-purple-500/20 text-purple-300 border-purple-400/40">
+                Metadata Only
+              </span>
+              <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+                <span className="material-symbols-outlined"
+                  style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>
+                  check_circle
+                </span>
+                Stream Analysis Complete
+              </span>
+            </div>
+          </div>
+          <p className="text-white/70 text-[15px] leading-relaxed whitespace-pre-line">{an.summary}</p>
+        </div>
+
+        {/* Thumbnail + Stream properties */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl overflow-hidden border border-purple-400/30 bg-[#0D0B0B]">
+            {thumb ? (
+              <img src={thumb} alt="Video thumbnail"
+                className="w-full aspect-video object-cover" />
+            ) : (
+              <div className="w-full aspect-video flex items-center justify-center">
+                <span className="material-symbols-outlined text-purple-300 text-4xl">movie</span>
+              </div>
+            )}
+            <div className="px-3 py-2 bg-[#543A14]/60">
+              <p className="text-[10px] text-[#FFF0DC]/45 uppercase tracking-wider font-semibold">
+                Thumbnail · 1 s seek
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 space-y-2">
+            <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest mb-3">
+              Stream Properties
+            </h4>
+            {[
+              ["Duration",    fmtDuration(fi.duration_s)],
+              ["Frame rate",  `${fi.fps.toFixed(1)} fps`],
+              ["Resolution",  fi.resolution],
+              ["Codec",       fi.codec.toUpperCase()],
+              ["Container",   fi.format],
+              ["File size",   `${fi.size_mb.toFixed(1)} MB`],
+              ["Total frames",fi.total_frames.toLocaleString()],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between items-center border-b border-[#FFF0DC]/10 pb-1.5 last:border-none last:pb-0">
+                <span className="text-[#FFF0DC]/55 text-xs">{k}</span>
+                <span className="text-white/80 text-xs font-semibold"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pending models */}
+        <div className="bg-[#0D0B0B] rounded-xl border border-purple-400/25 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-purple-300" style={{ fontSize: "16px" }}>
+              model_training
+            </span>
+            <h4 className="text-purple-200 text-xs font-semibold uppercase tracking-widest">
+              Video Intelligence Models — Pending Integration
+            </h4>
+          </div>
+          <p className="text-[#FFF0DC]/40 text-xs">{an.assessment_note}</p>
+          <div className="space-y-0.5">
+            {an.pending_models.map((pm) => (
+              <div key={pm.model} className="flex items-center gap-3 py-2 border-b border-[#FFF0DC]/8 last:border-none">
+                <div className="w-2 h-2 rounded-full bg-purple-400/35 border border-purple-400/55 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-purple-200 text-xs font-semibold">{pm.model}</p>
+                  <p className="text-[#FFF0DC]/40 text-[11px]">{pm.description}</p>
+                </div>
+                <span className="text-[10px] text-purple-300/50 shrink-0"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {pm.endpoint}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -362,6 +790,7 @@ function EvidencePanel({ modelOutputs }) {
 // ---------------------------------------------------------------------------
 
 export default function App() {
+  const [showSplash,    setShowSplash]    = useState(true);
   const [phase,         setPhase]         = useState("upload");
   const [file,          setFile]          = useState(null);
   const [previewUrl,    setPreviewUrl]    = useState(null);
@@ -375,7 +804,16 @@ export default function App() {
   const [chatHistory,   setChatHistory]   = useState([]);
   const [inputValue,    setInputValue]    = useState("");
   const [isTyping,      setIsTyping]      = useState(false);
-  const [copiedId,      setCopiedId]      = useState(null);
+  const [copiedId,          setCopiedId]          = useState(null);
+  const [greetingVisible,   setGreetingVisible]   = useState(false);
+  const [idleStatusIdx,     setIdleStatusIdx]     = useState(0);
+  const [idleStatusVisible, setIdleStatusVisible] = useState(true);
+  const [memory,            setMemory]            = useState(INITIAL_MEMORY);
+  const [userName,          setUserName]          = useState(() => localStorage.getItem(NAME_KEY));
+  const [nameInput,         setNameInput]         = useState("");
+  const [timeGreeting]                            = useState(getTimeGreeting);
+  const [fileMode,          setFileMode]          = useState("image"); // "image" | "video"
+  const [videoAnalysis,     setVideoAnalysis]     = useState(null);
 
   const fileInputRef = useRef(null);
   const chatEndRef   = useRef(null);
@@ -385,20 +823,65 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, isTyping]);
 
+  useEffect(() => {
+    if (phase !== "upload") return;
+    setGreetingVisible(false);
+    setIdleStatusIdx(0);
+    setIdleStatusVisible(true);
+    const t = setTimeout(() => setGreetingVisible(true), 900);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "upload" || !greetingVisible) return;
+    const timers = [];
+    function step() {
+      const wait = 5000 + Math.random() * 3000;
+      const t1 = setTimeout(() => {
+        setIdleStatusVisible(false);
+        const t2 = setTimeout(() => {
+          setIdleStatusIdx((i) => (i + 1) % IDLE_STATUS_MESSAGES.length);
+          setIdleStatusVisible(true);
+          step();
+        }, 450);
+        timers.push(t2);
+      }, wait);
+      timers.push(t1);
+    }
+    step();
+    return () => timers.forEach(clearTimeout);
+  }, [phase, greetingVisible]);
+
+  // ── Atmosphere theming — fires on phase/disaster type change ───────────────
+  useEffect(() => {
+    if (phase === "ready" && disasterCtx?.eventType) {
+      applyTheme(disasterCtx.eventType);
+    } else if (phase === "upload") {
+      resetTheme();
+    }
+  }, [phase, disasterCtx?.eventType]);
+
   // ── File handling ──────────────────────────────────────────────────────────
 
   const handleFile = useCallback((f) => {
     if (!f) return;
-    if (!f.type.startsWith("image/")) {
-      setFileError("Unsupported format — please upload a JPEG, PNG, or WebP image.");
+    const ext     = f.name.split(".").pop().toLowerCase();
+    const isImage = f.type.startsWith("image/");
+    const isVideo = f.type.startsWith("video/") || VIDEO_EXTENSIONS.has(ext);
+
+    if (!isImage && !isVideo) {
+      setFileError("Unsupported format — upload an image (JPEG, PNG, WebP) or video (MP4, MOV, AVI, MKV).");
       return;
     }
-    if (f.size > MAX_FILE_SIZE) {
-      setFileError(`File too large — ${(f.size / 1024 / 1024).toFixed(1)} MB exceeds the ${MAX_FILE_SIZE_MB} MB limit.`);
+    const maxBytes = isVideo ? MAX_VIDEO_FILE : MAX_FILE_SIZE;
+    const maxMB    = isVideo ? MAX_VIDEO_FILE_MB : MAX_FILE_SIZE_MB;
+    if (f.size > maxBytes) {
+      setFileError(`File too large — ${(f.size / 1024 / 1024).toFixed(1)} MB exceeds the ${maxMB} MB limit.`);
       return;
     }
     setFileError(null);
     setFile(f);
+    setFileMode(isVideo ? "video" : "image");
     setPreviewUrl(URL.createObjectURL(f));
   }, []);
 
@@ -416,12 +899,21 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
+  const handleSaveName = useCallback((rawName) => {
+    const name = rawName.trim();
+    localStorage.setItem(NAME_KEY, name);
+    setUserName(name);
+    setNameInput("");
+  }, []);
+
   // ── Reset ──────────────────────────────────────────────────────────────────
 
   const resetToUpload = () => {
+    resetTheme();
     setPhase("upload");
     setFile(null);
     setPreviewUrl(null);
+    setFileMode("image");
     setModelOutputs({});
     setModelStatus({});
     setDisasterCtx(null);
@@ -430,23 +922,81 @@ export default function App() {
     setFileError(null);
     setAnalysisError(null);
     setTimeline([]);
+    setVideoAnalysis(null);
   };
 
   // ── Analysis ───────────────────────────────────────────────────────────────
 
+  const handleVideoAnalyze = async () => {
+    setPhase("analyzing");
+    setModelOutputs({});
+    setAnalysisError(null);
+    setDisasterCtx(null);
+    setChatHistory([]);
+    setTimeline([{ id: 0, text: "Receiving video and extracting stream properties..." }]);
+    setModelStatus({ video: "running" });
+
+    try {
+      const data = await callVideoAnalysis(file);
+      setVideoAnalysis(data);
+      setModelStatus({ video: "complete" });
+      setTimeline([
+        { id: 1, text: `Stream: ${data.file_info.resolution} · ${data.file_info.fps.toFixed(1)} fps · ${data.file_info.duration_s.toFixed(1)}s` },
+        { id: 2, text: `Codec: ${data.file_info.codec.toUpperCase()} · ${data.file_info.size_mb.toFixed(1)} MB` },
+        { id: 3, text: data.thumbnail_b64 ? "Thumbnail frame extracted" : "Thumbnail unavailable — ffmpeg/opencv not found" },
+        { id: 4, text: "Metadata analysis complete — video models pending integration" },
+      ]);
+
+      setDisasterCtx({ eventType: "Video Assessment", severity: "Pending", confidence: 0, isVideo: true });
+      setChatHistory([{
+        id:      Date.now(),
+        role:    "assistant",
+        type:    "video-briefing",
+        content: data.analysis.summary,
+        time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
+      setPhase("ready");
+      setTimeout(() => inputRef.current?.focus(), 300);
+
+      setMemory((prev) => {
+        const entry = {
+          id:              Date.now().toString(),
+          timestamp:       new Date().toISOString(),
+          eventType:       "Video Assessment",
+          severity:        "Pending",
+          confidence:      0,
+          imageName:       file.name,
+          imageThumb:      data.thumbnail_b64 ?? null,
+          briefingSummary: data.analysis.summary.slice(0, 250),
+          briefingFull:    data.analysis.summary,
+          disasterCtx: { eventType: "Video Assessment", confidence: 0, severity: "Pending", caption: "", reasoning: "", sceneAnalysis: "" },
+        };
+        const updated = { totalIncidents: prev.totalIncidents + 1, lastVisit: new Date().toISOString(), assessments: [entry, ...prev.assessments].slice(0, MAX_ASSESSMENTS) };
+        saveMemory(updated);
+        return updated;
+      });
+    } catch (err) {
+      setAnalysisError(err.message);
+      setModelStatus({ video: "failed" });
+      setTimeout(() => { setPhase("upload"); setAnalysisError(null); }, 5000);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!file) {
-      setFileError("Please select an image to analyze.");
+      setFileError("Please select an image or video to analyze.");
       setTimeout(() => setFileError(null), 3000);
       return;
     }
+
+    if (fileMode === "video") return handleVideoAnalyze();
 
     setPhase("analyzing");
     setModelOutputs({});
     setAnalysisError(null);
     setDisasterCtx(null);
     setChatHistory([]);
-    setTimeline([{ id: 0, text: "Image loaded — preparing analysis" }]);
+    setTimeline([{ id: 0, text: "I'm taking a look at what you've shared..." }]);
     setModelStatus(MODELS.reduce((a, m) => ({ ...a, [m.key]: "waiting" }), {}));
 
     const results = await Promise.all(
@@ -457,13 +1007,13 @@ export default function App() {
           const data = await callModel(model.endpoint, file);
           setModelOutputs((prev) => ({ ...prev, [model.key]: data }));
           setModelStatus((prev) => ({ ...prev, [model.key]: "complete" }));
-          setTimeline((prev) => [...prev, { id: Date.now() + Math.random(), text: MODEL_TIMELINE_LABEL[model.key] }]);
+          setTimeline((prev) => [...prev, { id: Date.now() + Math.random(), text: MODEL_TIMELINE_LABEL[model.key](data) }]);
           return { key: model.key, data };
         } catch (err) {
           const errData = { error: err.message };
           setModelOutputs((prev) => ({ ...prev, [model.key]: errData }));
           setModelStatus((prev) => ({ ...prev, [model.key]: "failed" }));
-          setTimeline((prev) => [...prev, { id: Date.now() + Math.random(), text: `${model.name} failed — continuing with remaining models` }]);
+          setTimeline((prev) => [...prev, { id: Date.now() + Math.random(), text: "One perspective is unavailable — continuing with the rest..." }]);
           return { key: model.key, data: errData };
         }
       })
@@ -471,13 +1021,13 @@ export default function App() {
 
     const successCount = results.filter((r) => !r.data.error).length;
     if (successCount === 0) {
-      setAnalysisError("All models failed to respond. Verify your network connection and that the backend is running.");
-      setTimeline((prev) => [...prev, { id: Date.now(), text: "Analysis failed — check backend connection" }]);
+      setAnalysisError("Unable to reach the analysis pipeline. Verify your connection and confirm the backend is running.");
+      setTimeline((prev) => [...prev, { id: Date.now(), text: "I couldn't complete the analysis — check your connection and try again" }]);
       setTimeout(() => { setPhase("upload"); setAnalysisError(null); }, 5000);
       return;
     }
 
-    setTimeline((prev) => [...prev, { id: Date.now(), text: "Synthesizing intelligence briefing" }]);
+    setTimeline((prev) => [...prev, { id: Date.now(), text: "I'm putting together my full assessment..." }]);
 
     const outputs     = Object.fromEntries(results.map((r) => [r.key, r.data]));
     const ctx         = buildDisasterContext(outputs);
@@ -493,6 +1043,38 @@ export default function App() {
     }]);
     setPhase("ready");
     setTimeout(() => inputRef.current?.focus(), 300);
+
+    // Persist to memory (async thumbnail generation, non-blocking)
+    generateThumb(file).then((thumb) => {
+      const newEntry = {
+        id:              Date.now().toString(),
+        timestamp:       new Date().toISOString(),
+        eventType:       ctx.eventType,
+        severity:        ctx.severity,
+        confidence:      ctx.confidence,
+        imageName:       file.name,
+        imageThumb:      thumb,
+        briefingSummary: description.slice(0, 250),
+        briefingFull:    description,
+        disasterCtx: {
+          eventType:    ctx.eventType,
+          confidence:   ctx.confidence,
+          severity:     ctx.severity,
+          caption:      ctx.caption,
+          reasoning:    ctx.reasoning,
+          sceneAnalysis: ctx.sceneAnalysis,
+        },
+      };
+      setMemory((prev) => {
+        const updated = {
+          totalIncidents: prev.totalIncidents + 1,
+          lastVisit:      new Date().toISOString(),
+          assessments:    [newEntry, ...prev.assessments].slice(0, MAX_ASSESSMENTS),
+        };
+        saveMemory(updated);
+        return updated;
+      });
+    });
   };
 
   // ── Chat ───────────────────────────────────────────────────────────────────
@@ -588,21 +1170,70 @@ export default function App() {
     }
   };
 
+  // ── Restore a previous assessment from memory ─────────────────────────────
+
+  const handleRestoreAssessment = (assessment) => {
+    const ctx = {
+      ...assessment.disasterCtx,
+      top3:               [],
+      keywords:           [],
+      llavaMetrics:       {},
+      qwenMetrics:        {},
+      impacts:             IMPACTS[assessment.disasterCtx.eventType]              ?? [],
+      actions:             ACTIONS[assessment.disasterCtx.eventType]              ?? [],
+      infrastructure:      INFRASTRUCTURE[assessment.disasterCtx.eventType]       ?? [],
+      humanImpact:         HUMAN_IMPACTS[assessment.disasterCtx.eventType]        ?? [],
+      environmentalImpact: ENVIRONMENTAL_IMPACTS[assessment.disasterCtx.eventType] ?? [],
+    };
+    setDisasterCtx(ctx);
+    setPreviewUrl(assessment.imageThumb ?? null);
+    setModelOutputs({});
+    setModelStatus({});
+    setChatHistory([
+      {
+        id:          Date.now(),
+        role:        "assistant",
+        type:        "briefing",
+        isRestored:  true,
+        content:     assessment.briefingFull,
+        time:        new Date(assessment.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+      {
+        id:      Date.now() + 1,
+        role:    "assistant",
+        content: `I've restored your ${assessment.eventType.toLowerCase()} assessment from ${formatTimeAgo(assessment.timestamp)}. Detailed model evidence isn't available in a restored session, but I can still help you explore this incident. What would you like to know?`,
+        time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+    setPhase("ready");
+    setTimeout(() => inputRef.current?.focus(), 300);
+  };
+
+  // ── Personalized greeting (reactive to userName) ───────────────────────────
+  const greeting = INITIAL_MEMORY.totalIncidents > 0
+    ? (userName ? `Welcome back, ${userName}.` : "Welcome back.")
+    : (userName ? `${timeGreeting}, ${userName}.` : `${timeGreeting}.`);
+
+  // ── Atmosphere label (empty string = Default / no active atmosphere) ────────
+  const atmosphereLabel = (phase === "ready" && disasterCtx?.eventType)
+    ? getTheme(disasterCtx.eventType).label
+    : "";
+
   // ── Shared top navigation ──────────────────────────────────────────────────
 
   const TopNav = (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[#0A1931]/80 backdrop-blur-md border-b border-[#4A7FA7]/20">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-[#131010]/95 backdrop-blur-md border-b border-[#FFF0DC]/20 shadow-sm">
       <div className="flex justify-between items-center w-full px-12 py-4 max-w-[1200px] mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#B3CFE5] rounded flex items-center justify-center">
+          <div className="w-8 h-8 bg-[#F0BB78]/15 rounded-lg flex items-center justify-center border border-[#F0BB78]/30">
             <span
-              className="material-symbols-outlined text-[#0A1931] text-[18px]"
+              className="material-symbols-outlined text-[#F0BB78] text-[18px]"
               style={{ fontVariationSettings: "'FILL' 1" }}
             >
-              tsunami
+              radar
             </span>
           </div>
-          <h1 className="text-[24px] font-semibold text-[#dfe3e6]" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+          <h1 className="text-[24px] font-semibold text-white" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
             Disaster Intelligence Assistant
           </h1>
         </div>
@@ -610,15 +1241,15 @@ export default function App() {
           {phase === "ready" && (
             <button
               onClick={resetToUpload}
-              className="text-xs font-semibold text-[#c2c7cc] hover:text-[#B3CFE5] border border-[#4A7FA7]/40 hover:border-[#B3CFE5]/50 rounded-lg px-3 py-1.5 transition-colors"
+              className="text-xs font-semibold text-[#FFF0DC] hover:text-[#FFF0DC] border border-[#FFF0DC]/35 hover:border-[#F0BB78]/50 rounded-lg px-3 py-1.5 transition-colors"
             >
               ↩ New Analysis
             </button>
           )}
-          <button className="text-[#c2c7cc] hover:text-[#B3CFE5] transition-colors p-2">
+          <button className="text-white/50 hover:text-[#FFF0DC] transition-colors p-2">
             <span className="material-symbols-outlined">help</span>
           </button>
-          <button className="text-[#c2c7cc] hover:text-[#B3CFE5] transition-colors p-2">
+          <button className="text-white/50 hover:text-[#FFF0DC] transition-colors p-2">
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
@@ -630,175 +1261,264 @@ export default function App() {
   // PHASE: upload
   // ---------------------------------------------------------------------------
 
+  if (showSplash) return <SplashScreen onComplete={() => setShowSplash(false)} />;
+
   if (phase === "upload") {
     return (
-      <div className="min-h-screen flex flex-col bg-[#0A1931]">
+      <div className="h-screen flex flex-col overflow-hidden atm-bg">
         {TopNav}
 
-        <main className="flex-grow flex items-center justify-center px-4 md:px-12 pt-28 pb-12 relative overflow-hidden">
+        <main className="flex-1 overflow-y-auto relative">
           {/* Atmospheric gradients */}
-          <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 opacity-20">
-            <div className="absolute -top-[10%] -right-[5%] w-[50%] h-[50%] bg-[#B3CFE5]/20 blur-[140px] rounded-full" />
-            <div className="absolute -bottom-[10%] -left-[5%] w-[40%] h-[40%] bg-[#4A7FA7]/15 blur-[120px] rounded-full" />
+          <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+            <div className="absolute -top-[10%] -right-[5%] w-[50%] h-[50%] blur-[160px] rounded-full" style={{ background: 'var(--atm-glow-1)' }} />
+            <div className="absolute -bottom-[10%] -left-[5%] w-[40%] h-[40%] blur-[140px] rounded-full" style={{ background: 'var(--atm-glow-2)' }} />
           </div>
 
-          <div className="max-w-[800px] w-full flex flex-col items-center text-center z-10">
+          {/* Centering wrapper — vertically centers content in the available viewport, scrolls on overflow */}
+          <div className="min-h-full flex items-center justify-center px-4 md:px-8 pt-16 pb-4">
+            <div className="max-w-[560px] w-full flex flex-col z-10 gap-2.5">
 
-            {/* Hero */}
-            <div className="mb-8">
-              <h1
-                className="text-[40px] leading-[48px] font-semibold tracking-tight text-[#dfe3e6] mb-3"
-                style={{ fontFamily: "'Hanken Grotesk', sans-serif", letterSpacing: "-0.02em" }}
-              >
-                Disaster Intelligence Assistant
-              </h1>
-              <p className="text-[18px] leading-[28px] text-[#c2c7cc] max-w-[600px] mx-auto">
-                Upload a disaster image and receive an AI-generated intelligence briefing. Research-grade analysis for environmental crises.
-              </p>
-            </div>
+              {/* Assistant greeting — heading style */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-md bg-[#F0BB78]/15 flex items-center justify-center shrink-0">
+                    <span
+                      className="material-symbols-outlined text-[#F0BB78]"
+                      style={{ fontSize: "12px", fontVariationSettings: "'FILL' 1" }}
+                    >
+                      radar
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-medium text-[#FFF0DC]/30 uppercase tracking-widest">
+                    Disaster Intelligence
+                  </span>
+                </div>
 
-            {/* Drop zone */}
-            <div className="w-full mb-6 group">
-              <div
-                id="drop-zone"
-                role="button"
-                tabIndex={0}
-                aria-label="Upload disaster image"
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-                onDrop={onDrop}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                className={`upload-dashed rounded-xl min-h-[300px] flex flex-col items-center justify-center p-6
-                  cursor-pointer transition-all duration-300
-                  ${isDragging ? "upload-dashed-active bg-[#234d7a]/60 scale-[1.01]" : "bg-[#1A3D63] hover:bg-[#234d7a]/80"}`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleFile(e.target.files[0])}
-                />
-
-                {previewUrl ? (
-                  /* ── File selected ── */
-                  <div className="space-y-3 w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-block">
-                      <img
-                        src={previewUrl}
-                        alt="preview"
-                        className="max-h-52 max-w-full rounded-xl object-contain shadow-xl"
-                        onClick={() => fileInputRef.current?.click()}
-                        style={{ cursor: "pointer" }}
-                      />
-                      {/* Remove button */}
-                      <button
-                        onClick={clearImage}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#050d1a]/80 backdrop-blur-sm flex items-center justify-center hover:bg-[#234d7a] transition-colors border border-[#4A7FA7]/40"
-                        title="Remove image"
-                      >
-                        <span className="material-symbols-outlined text-[#c2c7cc]" style={{ fontSize: "14px" }}>close</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-[#c2c7cc]">
-                      <span className="material-symbols-outlined text-[#4A7FA7]" style={{ fontSize: "14px" }}>image</span>
-                      <span className="max-w-[220px] truncate">{file?.name}</span>
-                      <span className="text-[#4A7FA7]">·</span>
-                      <span className="text-[#c2c7cc]/60 shrink-0">{file ? (file.size / 1024 / 1024).toFixed(1) + " MB" : ""}</span>
-                      <span className="text-[#4A7FA7]">·</span>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-[#B3CFE5] hover:underline shrink-0"
-                      >
-                        replace
-                      </button>
-                    </div>
+                {!greetingVisible ? (
+                  <div className="flex items-center gap-1.5 h-7">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </div>
                 ) : (
-                  /* ── Empty state ── */
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-[#2c5685] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <span
-                        className="material-symbols-outlined text-[#B3CFE5] text-4xl"
-                        style={{ fontVariationSettings: "'FILL' 0, 'wght' 200" }}
-                      >
-                        upload_file
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      <h3
-                        className="text-[24px] font-medium text-[#dfe3e6]"
-                        style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
-                      >
-                        Drop image here
-                      </h3>
-                      <p className="text-[#c2c7cc] text-sm uppercase tracking-widest opacity-70">
-                        or click to browse local files
-                      </p>
-                    </div>
-                    <div className="flex gap-4 mt-4">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#050d1a] border border-[#4A7FA7]/30">
-                        <span className="material-symbols-outlined text-[#c2c7cc]" style={{ fontSize: "16px" }}>satellite_alt</span>
-                        <span className="text-[12px] font-semibold text-[#c2c7cc]">Satellite Imagery</span>
+                  <div className="greeting-enter flex flex-col gap-1">
+                    <h2 className="text-[#FFF0DC] text-[22px] font-semibold leading-tight">
+                      {greeting}
+                    </h2>
+
+                    {userName !== null ? (
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-[#FFF0DC]/55 text-[13px]">
+                          What would you like me to investigate today?
+                        </p>
+                        {memory.totalIncidents > 0 && (
+                          <div className="greeting-enter-slow flex items-center gap-1.5 flex-wrap mt-1">
+                            <span className="text-[#FFF0DC]/25 text-[11px]">Recent:</span>
+                            {memory.assessments.slice(0, 2).map((a) => (
+                              <button
+                                key={a.id}
+                                onClick={() => handleRestoreAssessment(a)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#543A14]/60 border border-[#FFF0DC]/15 text-[#FFF0DC]/45 text-[11px] hover:border-[#F0BB78]/35 hover:text-[#FFF0DC]/65 transition-all"
+                              >
+                                {a.eventType} · {formatTimeAgo(a.timestamp)}
+                                <span className="material-symbols-outlined" style={{ fontSize: "10px" }}>arrow_forward</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <p
+                          className="idle-status text-[10px] text-[#FFF0DC]/25 mt-0.5"
+                          style={{ opacity: idleStatusVisible ? 1 : 0 }}
+                        >
+                          {IDLE_STATUS_MESSAGES[idleStatusIdx]}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#050d1a] border border-[#4A7FA7]/30">
-                        <span className="material-symbols-outlined text-[#c2c7cc]" style={{ fontSize: "16px" }}>camera_indoor</span>
-                        <span className="text-[12px] font-semibold text-[#c2c7cc]">Field Capture</span>
+                    ) : (
+                      <div className="greeting-enter-slow flex flex-col gap-2 mt-0.5">
+                        <p className="text-[#FFF0DC]/55 text-[13px]">What should I call you?</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={nameInput}
+                            onChange={(e) => setNameInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSaveName(nameInput)}
+                            placeholder="Your name or callsign"
+                            maxLength={32}
+                            autoFocus
+                            className="bg-[#543A14]/50 border border-[#FFF0DC]/20 rounded-lg px-3 py-1.5 text-[#FFF0DC] text-sm placeholder-[#FFF0DC]/20 outline-none focus:border-[#F0BB78]/50 transition-colors w-44"
+                          />
+                          <button
+                            onClick={() => handleSaveName(nameInput)}
+                            disabled={!nameInput.trim()}
+                            className="w-8 h-8 rounded-lg bg-[#F0BB78] text-[#131010] flex items-center justify-center hover:bg-[#E8A860] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}>arrow_forward</span>
+                          </button>
+                          <button
+                            onClick={() => handleSaveName("")}
+                            className="text-[#FFF0DC]/30 text-xs hover:text-[#FFF0DC]/50 transition-colors"
+                          >
+                            skip
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* File error / validation message */}
-            <div className="w-full mb-4 min-h-[24px] flex items-center justify-center">
+              {/* Drop zone */}
+              <div className="w-full group">
+                <div
+                  id="drop-zone"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload disaster image"
+                  onClick={() => fileInputRef.current?.click()}
+                  onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+                  onDrop={onDrop}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  className={`upload-dashed rounded-xl min-h-[96px] flex flex-col items-center justify-center p-3
+                    cursor-pointer transition-all duration-300
+                    ${isDragging ? "upload-dashed-active bg-[#FFF0DC]/10 scale-[1.01]" : "bg-[#543A14]/60 hover:bg-[#543A14]"}`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/mp4,video/x-msvideo,video/quicktime,video/x-matroska,.avi,.mov,.mkv"
+                    className="hidden"
+                    onChange={(e) => handleFile(e.target.files[0])}
+                  />
+
+                  {previewUrl ? (
+                    /* ── File selected ── */
+                    <div className="space-y-2 w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="relative inline-block">
+                        {fileMode === "video" ? (
+                          <video
+                            src={previewUrl}
+                            className="max-h-40 max-w-full rounded-xl object-contain shadow-xl"
+                            controls
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            src={previewUrl}
+                            alt="preview"
+                            className="max-h-40 max-w-full rounded-xl object-contain shadow-xl"
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{ cursor: "pointer" }}
+                          />
+                        )}
+                        <button
+                          onClick={clearImage}
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#F0BB78]/70 backdrop-blur-sm flex items-center justify-center hover:bg-[#543A14] transition-colors border border-[#FFF0DC]/35"
+                          title="Remove file"
+                        >
+                          <span className="material-symbols-outlined text-[#FFF0DC]" style={{ fontSize: "13px" }}>close</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#FFF0DC]">
+                        {/* Mode badge */}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
+                          fileMode === "video"
+                            ? "bg-purple-500/20 border-purple-400/35 text-purple-300"
+                            : "bg-[#F0BB78]/15 border-[#F0BB78]/30 text-[#F0BB78]"
+                        }`}>
+                          <span className="material-symbols-outlined" style={{ fontSize: "11px", fontVariationSettings: "'FILL' 1" }}>
+                            {fileMode === "video" ? "videocam" : "image"}
+                          </span>
+                          {fileMode === "video" ? "Video" : "Image"}
+                        </span>
+                        <span className="max-w-[180px] truncate">{file?.name}</span>
+                        <span className="text-white/40">·</span>
+                        <span className="text-white/55 shrink-0">{file ? (file.size / 1024 / 1024).toFixed(1) + " MB" : ""}</span>
+                        <span className="text-white/40">·</span>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-[#FFF0DC] hover:underline shrink-0"
+                        >
+                          replace
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Empty state ── */
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[#543A14]/50 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shrink-0">
+                        <span
+                          className="material-symbols-outlined text-[#FFF0DC] text-xl"
+                          style={{ fontVariationSettings: "'FILL' 0, 'wght' 200" }}
+                        >
+                          perm_media
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[14px] font-medium text-[#FFF0DC]" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                          Share imagery or footage to get started
+                        </p>
+                        <p className="text-[#FFF0DC]/45 text-[12px]">
+                          Images (JPEG, PNG) or video (MP4, MOV, AVI, MKV)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* File error / validation message */}
               {fileError && (
                 <p className="text-red-300 text-sm flex items-center gap-2">
-                  <span className="material-symbols-outlined text-red-400" style={{ fontSize: "16px" }}>warning</span>
+                  <span className="material-symbols-outlined text-red-400" style={{ fontSize: "15px" }}>warning</span>
                   {fileError}
                 </p>
               )}
-            </div>
 
-            {/* Analyze button */}
-            <div className="w-full flex flex-col items-center gap-4">
-              <button
-                onClick={handleAnalyze}
-                className={`px-10 py-4 font-semibold text-xl rounded-lg shadow-lg flex items-center gap-3 transition-all duration-200
-                  ${fileError && !file
-                    ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                    : "bg-[#B3CFE5] text-[#0A1931] hover:shadow-[#B3CFE5]/20 hover:scale-[1.02] active:scale-[0.98]"}`}
-              >
-                <span className="material-symbols-outlined">analytics</span>
-                Analyze Image
-              </button>
-              <p className="text-[13px] text-[#c2c7cc]/60 flex items-center gap-2 font-medium">
-                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>verified_user</span>
-                Multi-Model Vision Pipeline · CLIP · BLIP-2 · LLaVA · Qwen2-VL
-              </p>
-            </div>
-          </div>
+              {/* Analyze button + hints row */}
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={handleAnalyze}
+                  className={`px-8 py-2.5 font-semibold text-sm rounded-xl shadow-lg flex items-center gap-2 transition-all duration-200
+                    ${fileError && !file
+                      ? "bg-red-500/20 text-red-300 border border-red-500/40"
+                      : "bg-[#F0BB78] text-[#131010] font-bold hover:bg-[#E8A860] hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"}`}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+                    {fileMode === "video" ? "videocam" : "send"}
+                  </span>
+                  {fileMode === "video" ? "Analyze Video" : "Analyze Image"}
+                </button>
+                <p className="text-[12px] text-white/50 flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>auto_awesome</span>
+                  Classify incidents · assess severity · generate operational insights
+                </p>
+              </div>
 
-          {/* Decorative corner panels */}
-          <div className="hidden lg:block absolute bottom-12 left-12">
-            <div className="p-4 border-l-2 border-[#B3CFE5] bg-[#050d1a]/40 rounded-r-lg">
-              <div className="text-[11px] font-bold text-[#B3CFE5] mb-1 tracking-wider uppercase" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                SYSTEM STATUS
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#B3CFE5] animate-pulse" />
-                <span className="text-[13px] font-medium text-[#dfe3e6]">Intelligence Grid Online</span>
-              </div>
-            </div>
-          </div>
-          <div className="hidden lg:block absolute bottom-12 right-12 text-right">
-            <div className="p-4 border-r-2 border-[#B3CFE5] bg-[#050d1a]/40 rounded-l-lg">
-              <div className="text-[11px] font-bold text-[#B3CFE5] mb-1 tracking-wider uppercase" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                DATA PROCESSING
-              </div>
-              <div className="text-[13px] font-medium text-[#dfe3e6]">4 VLMs · Parallel Inference</div>
+              {/* Pre-upload conversation hints */}
+              {greetingVisible && (
+                <div className="greeting-enter-late flex flex-col gap-1">
+                  <p className="text-[9px] text-[#FFF0DC]/25 uppercase tracking-widest font-semibold">
+                    After analysis
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "What can you determine from this image?",
+                      "Can you estimate the severity?",
+                      "What are the immediate response priorities?",
+                    ].map((q) => (
+                      <span
+                        key={q}
+                        className="px-2 py-0.5 rounded-full atm-chip border border-[#FFF0DC]/12 text-[11px] text-[#FFF0DC]/35 select-none"
+                      >
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -815,28 +1535,36 @@ export default function App() {
       Object.values(modelStatus).every((s) => s === "complete" || s === "failed");
 
     return (
-      <div className="min-h-screen flex flex-col bg-[#0A1931]">
+      <div className="min-h-screen flex flex-col atm-bg">
         {TopNav}
 
         <main className="flex-grow flex items-center justify-center px-4 pt-28 pb-12">
           <div className="max-w-[600px] w-full space-y-5">
 
-            {/* Image context strip */}
+            {/* File context strip */}
             {previewUrl && (
-              <div className="flex items-center gap-4 bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                <img src={previewUrl} alt="Analyzing" className="w-20 h-16 rounded-xl object-cover shrink-0" />
+              <div className="flex items-center gap-4 bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                {fileMode === "video" ? (
+                  <div className="w-20 h-16 rounded-xl shrink-0 bg-purple-500/20 border border-purple-400/30 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-purple-300 text-2xl">videocam</span>
+                  </div>
+                ) : (
+                  <img src={previewUrl} alt="Analyzing" className="w-20 h-16 rounded-xl object-cover shrink-0" />
+                )}
                 <div>
-                  <p className="text-[#dfe3e6] font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                    {analysisError ? "Analysis failed" : "Analyzing your image…"}
+                  <p className="text-white font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    {analysisError
+                      ? "Analysis failed"
+                      : fileMode === "video" ? "Extracting video stream data..." : "I'm taking a close look..."}
                   </p>
-                  <p className="text-[#c2c7cc] text-sm mt-0.5">
-                    {analysisError ? "Returning to upload in 5 seconds" : `Running ${MODELS.length} vision models in parallel`}
+                  <p className="text-[#FFF0DC] text-sm mt-0.5">
+                    {analysisError ? "Returning in 5 seconds" : fileMode === "video" ? "Running ffprobe and generating thumbnail..." : "Examining the scene from multiple angles..."}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* All-models-failed error */}
+            {/* Error banner */}
             {analysisError && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
                 <span className="material-symbols-outlined text-red-400 shrink-0 mt-0.5">wifi_off</span>
@@ -844,49 +1572,84 @@ export default function App() {
               </div>
             )}
 
-            {/* Model progress cards */}
-            <div className="grid grid-cols-2 gap-3">
-              {MODELS.map((m) => {
-                const status = modelStatus[m.key] ?? "waiting";
-                return (
-                  <div key={m.key} className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30 flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${m.gradient} shrink-0 transition-opacity duration-300
-                      ${status === "waiting" ? "opacity-25" : status === "running" ? "opacity-100 animate-pulse" : "opacity-100"}`}
+            {/* Progress panel — video vs image */}
+            {fileMode === "video" ? (
+              <div className="bg-[#543A14]/60 p-5 rounded-xl border border-purple-400/25 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    {analysisError ? "Analysis stopped" : "Extracting video metadata"}
+                  </p>
+                  <span className="text-purple-300 text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {modelStatus.video === "complete" ? "1 / 1" : "0 / 1"}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[#0D0B0B] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      modelStatus.video === "complete" ? "bg-emerald-400 w-full" :
+                      modelStatus.video === "failed"   ? "bg-red-400 w-full" :
+                                                         "bg-purple-400 animate-pulse w-2/3"
+                    }`}
+                  />
+                </div>
+                <p className="text-[#FFF0DC]/60 text-xs">
+                  {modelStatus.video === "running"   ? "Running ffprobe · extracting thumbnail frame..." :
+                   modelStatus.video === "complete"  ? "Stream data extracted — preparing assessment..." :
+                   modelStatus.video === "failed"    ? "Analysis failed" :
+                                                       "Initializing..."}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-[#543A14]/60 p-5 rounded-xl border border-[#FFF0DC]/20 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    {analysisError ? "Analysis stopped" : "Running multi-perspective analysis"}
+                  </p>
+                  <span className="text-[#FFF0DC] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {Object.values(modelStatus).filter((s) => s === "complete" || s === "failed").length} / {MODELS.length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-1.5 bg-[#0D0B0B] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#F0BB78] rounded-full transition-all duration-500 ease-out"
+                      style={{
+                        width: `${(Object.values(modelStatus).filter((s) => s === "complete" || s === "failed").length / MODELS.length) * 100}%`,
+                      }}
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[#dfe3e6] text-xs font-semibold">{m.name}</p>
-                      {status === "waiting" && (
-                        <p className="text-[#c2c7cc]/40 text-xs flex items-center gap-1">
-                          <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>schedule</span>
-                          Waiting
-                        </p>
-                      )}
-                      {status === "running" && (
-                        <p className="text-[#B3CFE5] text-xs animate-pulse">Analyzing…</p>
-                      )}
-                      {status === "complete" && (
-                        <p className="text-emerald-400 text-xs flex items-center gap-1">
-                          <span className="material-symbols-outlined" style={{ fontSize: "11px", fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                          Complete
-                        </p>
-                      )}
-                      {status === "failed" && (
-                        <p className="text-red-400 text-xs flex items-center gap-1">
-                          <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>error</span>
-                          Failed
-                        </p>
-                      )}
-                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex gap-1.5">
+                    {MODELS.map((m) => {
+                      const s = modelStatus[m.key] ?? "waiting";
+                      return (
+                        <div
+                          key={m.key}
+                          className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                            s === "complete" ? "bg-emerald-400/80" :
+                            s === "failed"   ? "bg-red-400/60"     :
+                            s === "running"  ? "bg-[#F0BB78] animate-pulse" :
+                                              "bg-[#FFF0DC]/15"
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-[#FFF0DC]/60 text-xs">
+                  {Object.values(modelStatus).some((s) => s === "running")
+                    ? "Examining scene details..."
+                    : Object.values(modelStatus).every((s) => s === "complete" || s === "failed")
+                    ? "Preparing unified assessment..."
+                    : "Initializing analysis pipeline..."}
+                </p>
+              </div>
+            )}
 
             {/* Analysis timeline */}
             {timeline.length > 0 && (
-              <div className="bg-[#050d1a]/60 rounded-xl border border-[#4A7FA7]/20 p-4 space-y-2">
+              <div className="bg-[#0D0B0B] atm-surface2 rounded-xl border border-[#FFF0DC]/20 p-4 space-y-2">
                 {timeline.map((event) => (
-                  <div key={event.id} className="flex items-center gap-2 text-xs text-[#c2c7cc]/70 timeline-enter">
+                  <div key={event.id} className="flex items-center gap-2 text-xs text-[#FFF0DC]/70 timeline-enter">
                     <span
                       className="material-symbols-outlined text-emerald-400/80 shrink-0"
                       style={{ fontSize: "12px", fontVariationSettings: "'FILL' 1" }}
@@ -897,19 +1660,19 @@ export default function App() {
                   </div>
                 ))}
                 {!analysisError && !allDone && (
-                  <div className="flex items-center gap-2 text-xs text-[#B3CFE5]/60">
+                  <div className="flex items-center gap-2 text-xs text-white/55">
                     <div className="w-3 h-3 shrink-0 flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-[#B3CFE5]/60 animate-pulse" />
+                      <div className="w-2 h-2 rounded-full bg-[#F0BB78]/50 animate-pulse" />
                     </div>
-                    <span>Running vision model analysis…</span>
+                    <span>Still examining the details...</span>
                   </div>
                 )}
                 {!analysisError && allDone && (
-                  <div className="flex items-center gap-2 text-xs text-[#B3CFE5]/60">
+                  <div className="flex items-center gap-2 text-xs text-white/55">
                     <div className="w-3 h-3 shrink-0 flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-[#B3CFE5]/60 animate-pulse" />
+                      <div className="w-2 h-2 rounded-full bg-[#F0BB78]/50 animate-pulse" />
                     </div>
-                    <span>Building intelligence briefing…</span>
+                    <span>I'm preparing my assessment...</span>
                   </div>
                 )}
               </div>
@@ -931,90 +1694,104 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-[#0A1931]">
+    <div className="h-screen overflow-hidden flex flex-col atm-bg">
       {TopNav}
 
       <div className="flex-1 pt-20 flex overflow-hidden relative">
 
         {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-        <aside className="hidden md:flex fixed left-0 top-20 bottom-0 w-[320px] bg-[#1A3D63] border-r border-[#4A7FA7]/30 p-6 flex-col gap-6 z-40">
+        <aside className="hidden md:flex fixed left-0 top-20 bottom-0 w-[240px] bg-[#543A14]/60 atm-surface border-r border-[#FFF0DC]/30 p-4 flex-col gap-4 z-40">
 
           <h3
-            className="text-xs font-semibold text-[#dfe3e6] uppercase tracking-widest"
+            className="text-xs font-semibold text-white uppercase tracking-widest"
             style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
           >
             Reference Context
           </h3>
+          {atmosphereLabel && (
+            <div className="-mt-2">
+              <span className="atm-label-badge">{atmosphereLabel}</span>
+            </div>
+          )}
 
-          {/* Scene image */}
-          <div className="rounded-xl overflow-hidden border border-[#4A7FA7]/40 relative group">
+          {/* Scene image / video */}
+          <div className="rounded-xl overflow-hidden border border-[#FFF0DC]/35 relative group">
             {previewUrl ? (
               <>
-                <img
-                  src={previewUrl}
-                  alt="Analysed scene"
-                  className="w-full aspect-video object-cover grayscale brightness-75 group-hover:grayscale-0 group-hover:brightness-100 transition-all duration-500"
-                />
+                {fileMode === "video" ? (
+                  <div className="w-full aspect-video bg-[#0D0B0B] flex items-center justify-center">
+                    {videoAnalysis?.thumbnail_b64 ? (
+                      <img
+                        src={videoAnalysis.thumbnail_b64}
+                        alt="Video thumbnail"
+                        className="w-full aspect-video object-cover grayscale brightness-75 group-hover:grayscale-0 group-hover:brightness-100 transition-all duration-500"
+                      />
+                    ) : (
+                      <span className="material-symbols-outlined text-purple-300 text-4xl">movie</span>
+                    )}
+                  </div>
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt="Analysed scene"
+                    className="w-full aspect-video object-cover grayscale brightness-75 group-hover:grayscale-0 group-hover:brightness-100 transition-all duration-500"
+                  />
+                )}
                 <div
-                  className="absolute bottom-2 left-2 bg-[#050d1a]/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] uppercase text-[#B3CFE5]"
+                  className="absolute bottom-2 left-2 bg-[#F0BB78]/70 backdrop-blur-sm px-2 py-1 rounded text-[10px] uppercase text-white"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  REF_ID: {disasterCtx?.eventType?.slice(0, 3).toUpperCase() ?? "EVT"}_{String(disasterCtx?.confidence ?? 0).replace(".", "")}
+                  {fileMode === "video" ? "VIDEO" : `REF_ID: ${disasterCtx?.eventType?.slice(0, 3).toUpperCase() ?? "EVT"}_${String(disasterCtx?.confidence ?? 0).replace(".", "")}`}
                 </div>
               </>
             ) : (
-              <div className="w-full aspect-video bg-[#050d1a] flex items-center justify-center">
-                <span className="material-symbols-outlined text-[#4A7FA7] text-4xl">image</span>
+              <div className="w-full aspect-video bg-[#0D0B0B] atm-surface2 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[#FFF0DC] text-4xl">image</span>
               </div>
             )}
           </div>
 
           {/* Disaster metrics */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-center border-b border-[#4A7FA7]/30 pb-2">
-              <span className="text-[#c2c7cc] text-sm font-semibold">Disaster Type</span>
-              <span className="text-[#dfe3e6] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center border-b border-[#FFF0DC]/20 pb-1.5">
+              <span className="text-[#FFF0DC]/70 text-xs">Type</span>
+              <span className="text-white text-xs font-semibold truncate max-w-[110px] text-right" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                 {disasterCtx?.eventType ?? "—"}
               </span>
             </div>
-            <div className="flex justify-between items-center border-b border-[#4A7FA7]/30 pb-2">
-              <span className="text-[#c2c7cc] text-sm font-semibold">Confidence</span>
-              <span className="text-[#B3CFE5] text-sm font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <div className="flex justify-between items-center border-b border-[#FFF0DC]/20 pb-1.5">
+              <span className="text-[#FFF0DC]/70 text-xs">Confidence</span>
+              <span className="text-[#FFF0DC] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                 {disasterCtx?.confidence ?? 0}%
               </span>
             </div>
-            <div className="flex justify-between items-center border-b border-[#4A7FA7]/30 pb-2">
-              <span className="text-[#c2c7cc] text-sm font-semibold">Severity</span>
-              <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${severityChipClass(disasterCtx?.severity)}`}>
+            <div className="flex justify-between items-center border-b border-[#FFF0DC]/20 pb-1.5">
+              <span className="text-[#FFF0DC]/70 text-xs">Severity</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${severityChipClass(disasterCtx?.severity)}`}>
                 {disasterCtx?.severity ?? "—"}
               </span>
-            </div>
-          </div>
-
-          {/* System node status */}
-          <div className="mt-auto">
-            <div className="bg-[#050d1a] p-4 rounded-xl border border-[#4A7FA7]/30">
-              <p className="text-[11px] text-[#c2c7cc] leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                <span className="text-[#B3CFE5]">SYSTEM_NODE:</span>{" "}
-                Ready for multi-modal reasoning. Evidence extraction complete. Contextual metadata latched.
-              </p>
             </div>
           </div>
         </aside>
 
         {/* ── Main chat area ────────────────────────────────────────────────── */}
-        <section className="flex-1 flex flex-col md:ml-[320px] chat-container overflow-y-auto pb-32">
+        <section className="flex-1 flex flex-col md:ml-[240px] chat-container overflow-y-auto pb-32">
           <div className="w-full max-w-[800px] mx-auto px-4 md:px-6 py-8 flex flex-col gap-8">
 
             {chatHistory.map((msg, msgIdx) => {
+
+              /* ── Video briefing message ── */
+              if (msg.type === "video-briefing" && videoAnalysis) {
+                return <VideoAssessmentPanel key={msg.id} msg={msg} videoAnalysis={videoAnalysis} />;
+              }
 
               /* ── Briefing message ── */
               if (msg.type === "briefing" && disasterCtx) {
                 return (
                   <article key={msg.id} className="flex gap-4 items-start message-enter">
-                    <div className="w-8 h-8 rounded-full bg-[#B3CFE5]/20 flex items-center justify-center shrink-0 mt-1">
+                    <div className="w-8 h-8 rounded-full bg-[#F0BB78]/15 flex items-center justify-center shrink-0 mt-1">
                       <span
-                        className="material-symbols-outlined text-[#B3CFE5]"
+                        className="material-symbols-outlined text-[#FFF0DC]"
                         style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                       >
                         analytics
@@ -1022,39 +1799,77 @@ export default function App() {
                     </div>
 
                     <div className="flex-1 space-y-5 pt-1">
-                      <div className="space-y-2">
-                        <h2
-                          className="text-[#dfe3e6] text-2xl font-semibold"
-                          style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
-                        >
-                          Analysis Complete
-                        </h2>
-                        <p className="text-[#c2c7cc] text-[18px] leading-[28px]">{msg.content}</p>
+
+                      {/* ── Unified Incident Assessment Header ── */}
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+                          <h2
+                            className="text-white text-3xl font-bold leading-tight"
+                            style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
+                          >
+                            {disasterCtx.eventType}
+                          </h2>
+                          <div className="flex items-center gap-2 pt-1.5">
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${severityChipClass(disasterCtx.severity)}`}>
+                              {disasterCtx.severity}
+                            </span>
+                            <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+                              <span
+                                className="material-symbols-outlined"
+                                style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}
+                              >
+                                check_circle
+                              </span>
+                              Assessment Complete
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-[#FFF0DC]/60 text-sm">Confidence</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-28 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-[#F0BB78] rounded-full"
+                                  style={{ width: `${Math.min(disasterCtx.confidence, 100)}%` }}
+                                />
+                              </div>
+                              <span
+                                className="text-[#FFF0DC] text-sm font-semibold"
+                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                              >
+                                {disasterCtx.confidence}%
+                              </span>
+                            </div>
+                          </div>
+                          {atmosphereLabel && <span className="atm-label-badge">{atmosphereLabel}</span>}
+                        </div>
+                        <p className="text-white/80 text-[17px] leading-[28px]">{msg.content}</p>
                       </div>
 
                       {/* Row 1: Risks | Actions */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                          <h4 className="text-[#B3CFE5] text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                          <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest mb-3">
                             Potential Risks
                           </h4>
-                          <ul className="text-[#c2c7cc] text-sm space-y-2">
+                          <ul className="text-white/80 text-sm space-y-2">
                             {disasterCtx.impacts.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
-                                <span className="w-1.5 h-1.5 bg-[#B3CFE5] rounded-full mt-[5px] shrink-0" />
+                                <span className="w-1.5 h-1.5 bg-[#F0BB78] rounded-full mt-[5px] shrink-0" />
                                 {item}
                               </li>
                             ))}
                           </ul>
                         </div>
-                        <div className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                          <h4 className="text-[#4A7FA7] text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                          <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest mb-3">
                             Recommended Actions
                           </h4>
-                          <ul className="text-[#c2c7cc] text-sm space-y-2">
+                          <ul className="text-white/80 text-sm space-y-2">
                             {disasterCtx.actions.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
-                                <span className="w-1.5 h-1.5 bg-[#4A7FA7] rounded-full mt-[5px] shrink-0" />
+                                <span className="w-1.5 h-1.5 bg-[#FFF0DC] rounded-full mt-[5px] shrink-0" />
                                 {item}
                               </li>
                             ))}
@@ -1064,27 +1879,27 @@ export default function App() {
 
                       {/* Row 2: Infrastructure | Human Impact */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                          <h4 className="text-[#c2c7cc]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                          <h4 className="text-[#FFF0DC]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                             Affected Infrastructure
                           </h4>
-                          <ul className="text-[#c2c7cc] text-sm space-y-2">
+                          <ul className="text-white/80 text-sm space-y-2">
                             {disasterCtx.infrastructure.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
-                                <span className="w-1.5 h-1.5 bg-[#c2c7cc]/40 rounded-full mt-[5px] shrink-0" />
+                                <span className="w-1.5 h-1.5 bg-[#F0BB78]/25 rounded-full mt-[5px] shrink-0" />
                                 {item}
                               </li>
                             ))}
                           </ul>
                         </div>
-                        <div className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                          <h4 className="text-[#c2c7cc]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                          <h4 className="text-[#FFF0DC]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                             Human Impact
                           </h4>
-                          <ul className="text-[#c2c7cc] text-sm space-y-2">
+                          <ul className="text-white/80 text-sm space-y-2">
                             {disasterCtx.humanImpact.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
-                                <span className="w-1.5 h-1.5 bg-[#c2c7cc]/40 rounded-full mt-[5px] shrink-0" />
+                                <span className="w-1.5 h-1.5 bg-[#F0BB78]/25 rounded-full mt-[5px] shrink-0" />
                                 {item}
                               </li>
                             ))}
@@ -1093,32 +1908,47 @@ export default function App() {
                       </div>
 
                       {/* Row 3: Environmental Impact — full width */}
-                      <div className="bg-[#1A3D63] p-4 rounded-xl border border-[#4A7FA7]/30">
-                        <h4 className="text-[#c2c7cc]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                      <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 shadow-sm">
+                        <h4 className="text-[#FFF0DC]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                           Environmental Impact
                         </h4>
-                        <ul className="text-[#c2c7cc] text-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                        <ul className="text-white/80 text-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                           {disasterCtx.environmentalImpact.map((item, i) => (
                             <li key={i} className="flex items-start gap-2">
-                              <span className="w-1.5 h-1.5 bg-[#c2c7cc]/40 rounded-full mt-[5px] shrink-0" />
+                              <span className="w-1.5 h-1.5 bg-[#F0BB78]/25 rounded-full mt-[5px] shrink-0" />
                               {item}
                             </li>
                           ))}
                         </ul>
                       </div>
 
-                      {/* Dynamic suggested question chips */}
-                      {chatHistory.length === 1 && (
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {getSuggestedQuestions(disasterCtx.eventType).map((q) => (
-                            <button
-                              key={q}
-                              onClick={() => handleChat(q)}
-                              className="bg-[#234d7a] hover:bg-[#4A7FA7]/30 transition-all text-[#dfe3e6] px-4 py-2 rounded-full text-xs border border-[#4A7FA7]/30 hover:border-[#4A7FA7]/60"
-                            >
-                              {q}
-                            </button>
-                          ))}
+                      {/* Suggested operational queries */}
+                      {chatHistory.length <= 2 && (
+                        <div className="pt-2 space-y-2">
+                          <p className="text-[10px] text-white/55 uppercase tracking-widest font-semibold">
+                            Suggested queries
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {getSuggestedQuestions(disasterCtx.eventType).map((q) => (
+                              <button
+                                key={q}
+                                onClick={() => handleChat(q)}
+                                className="atm-chip hover:brightness-95 transition-all text-white px-4 py-2 rounded-full text-xs border border-[#FFF0DC]/30 hover:border-[#FFF0DC]/60"
+                              >
+                                {q}
+                              </button>
+                            ))}
+                            {INITIAL_MEMORY.assessments.length > 0 && !msg.isRestored && (
+                              <button
+                                onClick={() => handleChat(
+                                  `How does this ${disasterCtx.eventType.toLowerCase()} compare to the ${INITIAL_MEMORY.assessments[0].eventType.toLowerCase()} incident from ${formatTimeAgo(INITIAL_MEMORY.assessments[0].timestamp)}?`
+                                )}
+                                className="bg-[#543A14]/60 hover:bg-[#543A14] transition-all text-[#FFF0DC] px-4 py-2 rounded-full text-xs border border-[#FFF0DC]/20 hover:border-[#FFF0DC]/50"
+                              >
+                                Compare with previous {INITIAL_MEMORY.assessments[0].eventType.toLowerCase()} incident
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1134,10 +1964,10 @@ export default function App() {
                 return (
                   <div key={msg.id} className="flex justify-end message-enter">
                     <div className="max-w-[75%]">
-                      <div className="bg-[#234d7a] border border-[#4A7FA7]/30 px-4 py-3 rounded-xl text-[#dfe3e6] text-sm leading-relaxed">
+                      <div className="px-4 py-3 rounded-2xl text-white text-sm leading-relaxed border border-[#F0BB78]/35" style={{ background: 'rgba(240,187,120,0.15)' }}>
                         {msg.content}
                       </div>
-                      <p className="text-xs text-[#4A7FA7]/40 mt-1 text-right">{msg.time}</p>
+                      <p className="text-xs text-white/40 mt-1 text-right">{msg.time}</p>
                     </div>
                   </div>
                 );
@@ -1147,20 +1977,20 @@ export default function App() {
               const isLastAsst = msgIdx === lastAsstNonBriefingIdx;
               return (
                 <article key={msg.id} className="flex gap-4 items-start group message-enter">
-                  <div className="w-8 h-8 rounded-full bg-[#B3CFE5]/20 flex items-center justify-center shrink-0 mt-1">
+                  <div className="w-8 h-8 rounded-full bg-[#F0BB78]/15 flex items-center justify-center shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-[#B3CFE5]"
+                      className="material-symbols-outlined text-[#FFF0DC]"
                       style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                     >
                       analytics
                     </span>
                   </div>
-                  <div className="flex-1 pt-1">
-                    <p className="text-[#c2c7cc] text-[16px] leading-[24px] whitespace-pre-line">{msg.content}</p>
-                    <div className="flex items-center gap-3 mt-2 flex-wrap">
-                      <p className="text-xs text-[#4A7FA7]/50">{msg.time}</p>
+                  <div className="flex-1 bg-[#543A14]/60 atm-bubble border border-[#FFF0DC]/20 rounded-2xl rounded-tl-sm px-5 py-4">
+                    <p className="text-white text-[16px] leading-[26px] whitespace-pre-line">{msg.content}</p>
+                    <div className="flex items-center gap-3 mt-3 flex-wrap">
+                      <p className="text-xs text-white/50">{msg.time}</p>
                       {msg.isFallback && (
-                        <p className="text-xs text-[#4A7FA7]/40 flex items-center gap-1">
+                        <p className="text-xs text-white/40 flex items-center gap-1">
                           <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>wifi_off</span>
                           Local response — backend unavailable
                         </p>
@@ -1168,7 +1998,7 @@ export default function App() {
                       {/* Copy button */}
                       <button
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#4A7FA7] hover:text-[#B3CFE5] flex items-center gap-1"
+                        className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#FFF0DC] hover:text-[#FFF0DC] flex items-center gap-1"
                         title="Copy response"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>
@@ -1180,7 +2010,7 @@ export default function App() {
                       {isLastAsst && !isTyping && (
                         <button
                           onClick={handleRegenerate}
-                          className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#4A7FA7] hover:text-[#B3CFE5] flex items-center gap-1"
+                          className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#FFF0DC] hover:text-[#FFF0DC] flex items-center gap-1"
                           title="Regenerate response"
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>refresh</span>
@@ -1196,19 +2026,19 @@ export default function App() {
             {/* Typing indicator */}
             {isTyping && (
               <article className="flex gap-4 items-start message-enter">
-                <div className="w-8 h-8 rounded-full bg-[#B3CFE5]/20 flex items-center justify-center shrink-0 mt-1">
+                <div className="w-8 h-8 rounded-full bg-[#F0BB78]/15 flex items-center justify-center shrink-0 mt-1">
                   <span
-                    className="material-symbols-outlined text-[#B3CFE5]"
+                    className="material-symbols-outlined text-[#FFF0DC]"
                     style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                   >
                     analytics
                   </span>
                 </div>
-                <div className="pt-3 flex items-center gap-1.5">
+                <div className="bg-[#543A14]/60 atm-bubble border border-[#FFF0DC]/20 rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-1.5">
                   {[0, 150, 300].map((d) => (
                     <span
                       key={d}
-                      className="w-2 h-2 rounded-full bg-[#4A7FA7] animate-bounce"
+                      className="w-2 h-2 rounded-full bg-[#FFF0DC] animate-bounce"
                       style={{ animationDelay: `${d}ms` }}
                     />
                   ))}
@@ -1223,11 +2053,11 @@ export default function App() {
 
       {/* ── Fixed chat input ────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-0 left-0 right-0 md:left-[320px] flex justify-center px-4 md:px-6 pt-4 z-50"
+        className="fixed bottom-0 left-0 right-0 md:left-[240px] flex justify-center px-4 md:px-6 pt-4 z-50"
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="w-full max-w-[800px] bg-[#234d7a]/90 backdrop-blur-md rounded-full border border-[#4A7FA7]/50 shadow-2xl flex items-center px-4 md:px-6 py-2 focus-within:ring-1 focus-within:ring-[#B3CFE5]/50 transition-all">
-          <button className="text-[#c2c7cc] hover:text-[#4A7FA7] p-2 transition-colors hidden sm:flex">
+        <div className="w-full max-w-[800px] bg-[#543A14]/60 atm-surface shadow-xl rounded-full border border-[#FFF0DC]/30 flex items-center px-4 md:px-6 py-2 focus-within:ring-2 focus-within:ring-[#F0BB78]/20 transition-all">
+          <button className="text-white/55 hover:text-[#FFF0DC] p-2 transition-colors hidden sm:flex">
             <span className="material-symbols-outlined">attachment</span>
           </button>
           <input
@@ -1236,18 +2066,18 @@ export default function App() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
-            placeholder="Ask about severity, risks, or deployment…"
+            placeholder="Ask me anything about this incident…"
             disabled={isTyping}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-[#dfe3e6] placeholder-[#c2c7cc]/50 px-3 md:px-4 py-2 text-sm outline-none disabled:cursor-not-allowed"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-white/30 px-3 md:px-4 py-2 text-sm outline-none disabled:cursor-not-allowed"
           />
           <div className="flex items-center gap-1 md:gap-2">
-            <button className="text-[#c2c7cc] hover:text-[#4A7FA7] p-2 transition-colors hidden sm:flex">
+            <button className="text-white/55 hover:text-[#FFF0DC] p-2 transition-colors hidden sm:flex">
               <span className="material-symbols-outlined">mic</span>
             </button>
             <button
               onClick={() => handleChat()}
               disabled={!inputValue.trim() || isTyping}
-              className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-[#B3CFE5] text-[#0A1931] flex items-center justify-center hover:brightness-110 transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full atm-primary-bg text-white flex items-center justify-center hover:brightness-110 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                 arrow_upward
@@ -1258,9 +2088,9 @@ export default function App() {
       </div>
 
       {/* Atmospheric gradients */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 opacity-20">
-        <div className="absolute -top-[10%] -right-[5%] w-[50%] h-[50%] bg-[#B3CFE5]/20 blur-[140px] rounded-full" />
-        <div className="absolute -bottom-[10%] -left-[5%] w-[40%] h-[40%] bg-[#4A7FA7]/15 blur-[120px] rounded-full" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute -top-[10%] -right-[5%] w-[50%] h-[50%] blur-[160px] rounded-full" style={{ background: 'var(--atm-glow-1)' }} />
+        <div className="absolute -bottom-[10%] -left-[5%] w-[40%] h-[40%] blur-[140px] rounded-full" style={{ background: 'var(--atm-glow-2)' }} />
       </div>
     </div>
   );

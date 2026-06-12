@@ -17,8 +17,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routes.predict import router as predict_router
-from backend.routes.chat   import router as chat_router
+from backend.routes.predict       import router as predict_router
+from backend.routes.chat          import router as chat_router
+from backend.routes.predict_video import router as video_router
 
 # Load .env at startup so OPENAI_API_KEY and LOG_LEVEL are available immediately.
 load_dotenv()
@@ -68,7 +69,7 @@ app = FastAPI(
 # Allow the React dev server (port 5173) and any production origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -76,6 +77,7 @@ app.add_middleware(
 # All VLM endpoints live under the predict router.
 app.include_router(predict_router, tags=["VLM Inference"])
 app.include_router(chat_router,    tags=["Intelligence Chat"])
+app.include_router(video_router,   tags=["Video VLM Inference"])
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,16 @@
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import sys
 import threading
 import torch
+
+# Make src/ importable when this file is run standalone.
+_SRC = Path(__file__).resolve().parent.parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from utils.metrics import confidence_to_level  # noqa: E402
 
 
 # -------------------------------------------------------------------
@@ -105,26 +113,57 @@ MAX_NEW_TOKENS = 200
 
 
 # -------------------------------------------------------------------
-# Visual Analysis Prompt
+# Structured Disaster Analysis Prompt
 # -------------------------------------------------------------------
 
 # Qwen2-VL uses a structured chat message format with typed content blocks.
-# Unlike LLaVA's flat prompt string, each content element is a dict.
-#
-# Structured numbered prompts force Qwen to produce a multi-dimensional
-# disaster assessment rather than a single-sentence description, yielding
-# more informative and differentiated outputs compared to other models.
+# Enforcing labeled-field output makes the response machine-parseable.
+# The CONFIDENCE field allows Qwen to self-report its own certainty,
+# which overrides the per-token probability estimate when it is valid.
 
 PROMPT = (
-    "You are a professional disaster assessment analyst examining a field photograph. "
-    "Analyze this image and provide a structured response covering each of the following:\n"
-    "1. DISASTER TYPE: Identify the specific type of natural disaster depicted.\n"
-    "2. VISIBLE DAMAGE: Describe damage to buildings, roads, infrastructure, or terrain.\n"
-    "3. ENVIRONMENTAL IMPACT: Describe effects on vegetation, water bodies, or landscape.\n"
-    "4. SEVERITY: Assess the scale and intensity (minor / moderate / severe / catastrophic).\n"
-    "5. AFFECTED AREA: Characterize the setting (urban, rural, coastal, mountainous, etc.).\n"
-    "Provide a concise but comprehensive professional field assessment."
+    "Analyze this disaster scene. Respond ONLY in this format:\n"
+    "DISASTER TYPE: [type]\n"
+    "SEVERITY: [Critical/High/Moderate/Low]\n"
+    "AFFECTED POPULATION: [estimate]\n"
+    "INFRASTRUCTURE: [status]\n"
+    "ENVIRONMENT: [impact]\n"
+    "CONFIDENCE: [0-100]"
 )
+
+
+# -------------------------------------------------------------------
+# Response Parser
+# -------------------------------------------------------------------
+
+_FIELD_MAP = {
+    "DISASTER TYPE":      "disaster_type",
+    "SEVERITY":           "severity",
+    "AFFECTED POPULATION": "affected_population",
+    "INFRASTRUCTURE":     "infrastructure_status",
+    "ENVIRONMENT":        "environmental_impact",
+}
+
+
+def _parse_fields(text: str):
+    """Return (fields_dict, parsed_confidence_or_None)."""
+    fields = {v: "" for v in _FIELD_MAP.values()}
+    parsed_confidence = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        for label, key in _FIELD_MAP.items():
+            if stripped.startswith(label + ":"):
+                fields[key] = stripped[len(label) + 1:].strip()
+                break
+        if stripped.startswith("CONFIDENCE:"):
+            val = stripped[len("CONFIDENCE:"):].strip()
+            try:
+                parsed_confidence = float(val)
+            except ValueError:
+                pass
+
+    return fields, parsed_confidence
 
 
 # -------------------------------------------------------------------
@@ -224,10 +263,22 @@ def predict_response(image_path):
         probs = torch.softmax(score.float(), dim=-1)
         token_probs.append(probs.max().item())
 
-    confidence = (
+    token_confidence = (
         sum(token_probs) / len(token_probs) * 100
         if token_probs else 0
     )
+
+
+    # ---------------------------------------------------------------
+    # Parse fields; use model-reported CONFIDENCE if valid
+    # ---------------------------------------------------------------
+
+    fields, parsed_conf = _parse_fields(response)
+
+    if parsed_conf is not None and 0 <= parsed_conf <= 100:
+        confidence_score = round(parsed_conf, 2)
+    else:
+        confidence_score = round(token_confidence, 2)
 
 
     # ---------------------------------------------------------------
@@ -236,17 +287,22 @@ def predict_response(image_path):
 
     print("\nQwen2-VL Response:")
     print(response)
-    print(f"Confidence: {round(confidence, 2)}%")
+    print(f"Token confidence: {round(token_confidence, 2)}%")
+    print(f"Final confidence: {confidence_score}%")
 
 
     # ---------------------------------------------------------------
-    # Return response
+    # Return structured metrics
     # ---------------------------------------------------------------
 
     return {
-        "model":      "Qwen-VL",
-        "response":   response,
-        "confidence": round(confidence, 2),
+        "model": "Qwen-VL",
+        "metrics": {
+            **fields,
+            "confidence_score": confidence_score,
+            "confidence_level": confidence_to_level(confidence_score),
+            "raw_analysis":     response,
+        }
     }
 
 
@@ -262,6 +318,7 @@ if __name__ == "__main__":
 
     print("\nScene Understanding Result")
     print("-------------------------")
-    print(f"Model      : {result['model']}")
-    print(f"Response   : {result['response']}")
-    print(f"Confidence : {result['confidence']}%")
+    print(f"Model         : {result['model']}")
+    print(f"Disaster Type : {result['metrics']['disaster_type']}")
+    print(f"Severity      : {result['metrics']['severity']}")
+    print(f"Confidence    : {result['metrics']['confidence_score']}%")

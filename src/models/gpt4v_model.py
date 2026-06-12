@@ -28,7 +28,7 @@ Configuration:
 
 Inference flow:
   Image path → base64-encode → OpenAI Chat Completions API (vision)
-  → strip whitespace → return structured response dict
+  → parse labeled fields → return structured metrics dict
 """
 
 import base64
@@ -51,26 +51,26 @@ _SYSTEM_PROMPT = (
     "remote sensing imagery, and emergency response classification. "
     "Your assessments are used by emergency responders and disaster relief coordinators. "
     "When shown a disaster photograph, deliver a precise, structured field report using "
-    "domain-specific terminology. Cover: disaster classification, physical damage extent, "
-    "environmental impact, severity rating, and affected area characterization. "
-    "Be factual, concise, and avoid speculation beyond what is visually evident."
+    "domain-specific terminology. Be factual, concise, and avoid speculation beyond "
+    "what is visually evident."
 )
 
 _USER_PROMPT = (
-    "Analyze this disaster scene photograph and provide a structured field assessment:\n\n"
-    "1. DISASTER TYPE: Classify the specific type of natural disaster depicted "
-    "(e.g., riverine flood, flash flood, wildfire, structural earthquake damage, "
-    "debris flow landslide, tropical cyclone, coastal tsunami inundation).\n\n"
-    "2. VISIBLE DAMAGE: Describe damage to buildings, roads, bridges, utilities, "
-    "or other infrastructure visible in the image.\n\n"
-    "3. ENVIRONMENTAL IMPACT: Describe effects on terrain, vegetation, water bodies, "
-    "or the natural landscape.\n\n"
-    "4. SEVERITY RATING: Estimate the disaster severity as one of: "
-    "Minor / Moderate / Severe / Catastrophic, with a brief justification.\n\n"
-    "5. AFFECTED AREA: Characterize the setting and apparent scale of impact "
-    "(e.g., urban district, rural farmland, coastal community, mountainous terrain).\n\n"
-    "Provide the assessment as a concise professional report paragraph, "
-    "not a bullet list."
+    "Analyze this disaster scene photograph and provide a structured assessment "
+    "using ONLY these labeled sections:\n\n"
+    "DISASTER TYPE: [specific type, e.g., riverine flood, flash flood, wildfire, "
+    "structural earthquake damage, debris flow landslide, tropical cyclone]\n\n"
+    "SEVERITY: [Critical / High / Moderate / Low — one-sentence justification]\n\n"
+    "KEY OBSERVATIONS:\n"
+    "- [visual observation 1]\n"
+    "- [visual observation 2]\n"
+    "- [visual observation 3]\n\n"
+    "RECOMMENDED ACTIONS:\n"
+    "- [action 1]\n"
+    "- [action 2]\n"
+    "- [action 3]\n\n"
+    "Respond with ONLY these four labeled sections. Do not add additional headers "
+    "or narrative paragraphs outside the labeled fields."
 )
 
 _MIME_MAP: dict[str, str] = {
@@ -81,6 +81,58 @@ _MIME_MAP: dict[str, str] = {
     ".webp": "image/webp",
     ".tiff": "image/tiff",
 }
+
+
+# ---------------------------------------------------------------------------
+# Response Parser
+# ---------------------------------------------------------------------------
+
+def _parse_response(text: str) -> dict:
+    """Parse GPT-4V structured response into fields."""
+    disaster_type     = ""
+    severity          = ""
+    confidence_level  = ""
+    key_observations  = []
+    recommended_actions = []
+
+    mode = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+
+        if stripped.startswith("DISASTER TYPE:"):
+            disaster_type = stripped[len("DISASTER TYPE:"):].strip()
+            mode = None
+        elif stripped.startswith("SEVERITY:"):
+            severity_full = stripped[len("SEVERITY:"):].strip()
+            for level in ("Critical", "High", "Moderate", "Low"):
+                if severity_full.lower().startswith(level.lower()):
+                    severity         = level
+                    confidence_level = level
+                    break
+            mode = None
+        elif stripped.startswith("KEY OBSERVATIONS:"):
+            mode = "observations"
+        elif stripped.startswith("RECOMMENDED ACTIONS:"):
+            mode = "actions"
+        elif stripped.startswith("-"):
+            item = stripped[1:].strip()
+            if item and mode == "observations":
+                key_observations.append(item)
+            elif item and mode == "actions":
+                recommended_actions.append(item)
+        elif stripped and not stripped.startswith("-"):
+            # Non-bullet content outside a list section resets the list mode
+            if mode not in ("observations", "actions"):
+                mode = None
+
+    return {
+        "disaster_type":      disaster_type,
+        "severity":           severity,
+        "confidence_level":   confidence_level,
+        "key_observations":   key_observations,
+        "recommended_actions": recommended_actions,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +229,7 @@ class OpenAIVisionProvider(VisionProvider):
                     ],
                 },
             ],
-            max_tokens=300,
+            max_tokens=400,
             temperature=0,   # deterministic for reproducible analysis
         )
 
@@ -233,7 +285,7 @@ def predict_disaster(image_path: str) -> dict:
     """Run GPT-4o Vision analysis on a disaster image.
 
     Validates the image, selects the configured provider via the factory,
-    and returns a structured response with provider metadata.
+    and returns structured metrics parsed from the model's labeled response.
 
     Args:
         image_path: Absolute path to the image file.
@@ -242,7 +294,15 @@ def predict_disaster(image_path: str) -> dict:
         {
             "model":    "GPT-4V",
             "provider": str,   # e.g. "OpenAI / gpt-4o"
-            "response": str,   # detailed scene analysis
+            "metrics":  {
+                "disaster_type":       str,
+                "severity":            str,
+                "confidence_score":    None,  # GPT-4V has no token scores
+                "confidence_level":    str,
+                "key_observations":    list[str],
+                "recommended_actions": list[str],
+                "raw_response":        str,
+            }
         }
 
     Raises:
@@ -272,8 +332,18 @@ def predict_disaster(image_path: str) -> dict:
         user_prompt=_USER_PROMPT,
     )
 
+    parsed = _parse_response(response_text)
+
     return {
         "model":    "GPT-4V",
         "provider": provider.provider_name,
-        "response": response_text,
+        "metrics":  {
+            "disaster_type":       parsed["disaster_type"],
+            "severity":            parsed["severity"],
+            "confidence_score":    None,
+            "confidence_level":    parsed["confidence_level"],
+            "key_observations":    parsed["key_observations"],
+            "recommended_actions": parsed["recommended_actions"],
+            "raw_response":        response_text,
+        },
     }

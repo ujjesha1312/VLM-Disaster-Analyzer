@@ -1,0 +1,15 @@
+# VIDI Video Dataset Pipeline — Python dependencies
+# Install: pip install -r requirements.txt
+# System: apt-get install -y ffmpeg   (Linux/Colab)
+#         brew install ffmpeg          (macOS)
+
+yt-dlp>=2024.1.0
+pandas>=2.1.0
+scikit-learn>=1.3.0
+tqdm>=4.66.0
+requests>=2.31.0
+matplotlib>=3.7.0
+numpy>=1.24.0
+
+# Optional — needed for preprocess_videos.py --normalize pipeline
+# opencv-python>=4.8.0

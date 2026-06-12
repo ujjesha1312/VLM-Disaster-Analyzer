@@ -1,8 +1,16 @@
 from transformers import Blip2Processor, Blip2ForConditionalGeneration
 from pathlib import Path
 from PIL import Image
+import sys
 import threading
 import torch
+
+# Make src/ importable when this file is run standalone.
+_SRC = Path(__file__).resolve().parent.parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from utils.metrics import confidence_to_level  # noqa: E402
 
 
 # -------------------------------------------------------------------
@@ -79,6 +87,31 @@ PROMPT = (
     "and what damage or environmental impact is visible? "
     "Answer:"
 )
+
+
+# -------------------------------------------------------------------
+# Keyword Extraction
+# -------------------------------------------------------------------
+
+_STOPWORDS = {
+    "that", "this", "with", "from", "have", "been", "were", "they",
+    "their", "there", "which", "where", "what", "when", "will", "about",
+    "also", "into", "some", "such", "than", "then", "these", "those",
+    "both", "each", "more", "most", "other", "over", "under", "after",
+    "before", "while", "image", "shows", "shown", "visible", "area",
+    "areas", "large", "small", "many", "several",
+}
+
+
+def _extract_keywords(caption: str) -> list:
+    seen = set()
+    keywords = []
+    for word in caption.lower().split():
+        clean = word.strip(".,!?;:\"'()-")
+        if len(clean) > 4 and clean not in _STOPWORDS and clean not in seen:
+            seen.add(clean)
+            keywords.append(clean)
+    return keywords[:5]
 
 
 # -------------------------------------------------------------------
@@ -162,6 +195,7 @@ def predict_caption(image_path):
         sum(token_probs) / len(token_probs) * 100
         if token_probs else 0
     )
+    confidence_score = round(confidence, 2)
 
 
     # ---------------------------------------------------------------
@@ -170,17 +204,21 @@ def predict_caption(image_path):
 
     print("\nBLIP-2 Caption:")
     print(caption)
-    print(f"Confidence: {round(confidence, 2)}%")
+    print(f"Confidence: {confidence_score}%")
 
 
     # ---------------------------------------------------------------
-    # Return response
+    # Return structured metrics
     # ---------------------------------------------------------------
 
     return {
         "model": "BLIP-2",
-        "caption": caption,
-        "confidence": round(confidence, 2)
+        "metrics": {
+            "scene_description": caption,
+            "confidence_score":  confidence_score,
+            "confidence_level":  confidence_to_level(confidence_score),
+            "keywords":          _extract_keywords(caption),
+        }
     }
 
 
@@ -196,6 +234,7 @@ if __name__ == "__main__":
 
     print("\nCaption Result")
     print("-------------------------")
-    print(f"Model      : {result['model']}")
-    print(f"Caption    : {result['caption']}")
-    print(f"Confidence : {result['confidence']}%")
+    print(f"Model       : {result['model']}")
+    print(f"Description : {result['metrics']['scene_description']}")
+    print(f"Keywords    : {result['metrics']['keywords']}")
+    print(f"Confidence  : {result['metrics']['confidence_score']}%")
