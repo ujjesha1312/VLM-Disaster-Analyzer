@@ -75,11 +75,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# All VLM endpoints live under the predict router.
+# Specific routes must be registered before parameterised ones.
+# disaster_router owns POST /predict/disaster — it must come before
+# predict_router's POST /predict/{model_name}, otherwise FastAPI
+# matches "disaster" as the model_name parameter and returns 400.
+app.include_router(disaster_router,  tags=["Unified Inference"])
 app.include_router(predict_router,   tags=["VLM Inference"])
 app.include_router(chat_router,      tags=["Intelligence Chat"])
 app.include_router(video_router,     tags=["Video VLM Inference"])
-app.include_router(disaster_router,  tags=["Unified Inference"])
 
 
 # ---------------------------------------------------------------------------

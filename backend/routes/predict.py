@@ -212,11 +212,13 @@ async def predict(
         )
 
     except Exception as exc:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Inference error: {exc}"
-        )
+        import traceback
+        traceback.print_exc()
+        return {
+            "error": str(exc),
+            "type":  type(exc).__name__,
+            "trace": traceback.format_exc(),
+        }
 
     finally:
 
