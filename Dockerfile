@@ -32,10 +32,12 @@ ENV QUANTIZE_QWEN=true
 ENV LOG_LEVEL=INFO
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8000
+# Hugging Face Docker Spaces proxy all external traffic to port 7860.
+# The container must listen on 7860 or the Space will be unreachable.
+EXPOSE 7860
 
 # ── Health check ──────────────────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+    CMD curl -f http://localhost:7860/ || exit 1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]
