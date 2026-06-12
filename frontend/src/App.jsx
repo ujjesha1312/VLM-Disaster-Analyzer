@@ -664,6 +664,170 @@ function EvidencePanel({ modelOutputs }) {
 }
 
 // ---------------------------------------------------------------------------
+// ReportCard — reusable cell inside UnifiedReportPanel
+// ---------------------------------------------------------------------------
+
+function ReportCard({ title, icon, content, accent = false }) {
+  return (
+    <div className={`p-4 rounded-xl border ${
+      accent
+        ? "bg-[#F0BB78]/5 border-[#F0BB78]/30"
+        : "bg-[#543A14]/60 border-[#FFF0DC]/20"
+    }`}>
+      <div className="flex items-center gap-2 mb-3">
+        <span
+          className="material-symbols-outlined text-[#FFF0DC]"
+          style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+        >
+          {icon}
+        </span>
+        <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest">{title}</h4>
+      </div>
+      <p className="text-white/80 text-sm leading-relaxed">{content || "Not assessed."}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UnifiedReportPanel — rendered as a chat message for unified-briefing type
+// ---------------------------------------------------------------------------
+
+function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery, chatLength }) {
+  const d = unifiedResult;
+  if (!d) return null;
+
+  const conf    = d.classification_confidence ?? 0;
+  const models  = d.active_models ?? ["CLIP", "Qwen2-VL"];
+  const procMs  = d.processing_time_ms ?? null;
+
+  return (
+    <article key={msg.id} className="flex gap-4 items-start message-enter">
+      <div className="w-8 h-8 rounded-full bg-[#F0BB78]/15 flex items-center justify-center shrink-0 mt-1">
+        <span
+          className="material-symbols-outlined text-[#FFF0DC]"
+          style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
+        >
+          analytics
+        </span>
+      </div>
+
+      <div className="flex-1 space-y-5 pt-1">
+
+        {/* ── Header ── */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+            <h2
+              className="text-white text-3xl font-bold leading-tight"
+              style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
+            >
+              {d.category}
+            </h2>
+            <div className="flex items-center gap-2 pt-1.5">
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${severityChipClass(d.severity)}`}>
+                {d.severity}
+              </span>
+              <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}
+                >
+                  check_circle
+                </span>
+                Report Ready
+              </span>
+            </div>
+          </div>
+
+          {/* Confidence bar */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[#FFF0DC]/60 text-sm">Classification confidence</span>
+              <div className="flex items-center gap-2">
+                <div className="w-28 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#F0BB78] rounded-full transition-all"
+                    style={{ width: `${Math.min(conf, 100)}%` }}
+                  />
+                </div>
+                <span
+                  className="text-[#FFF0DC] text-sm font-semibold"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {conf}%
+                </span>
+              </div>
+            </div>
+            {procMs && (
+              <span className="text-[#FFF0DC]/30 text-xs" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {(procMs / 1000).toFixed(1)}s
+              </span>
+            )}
+          </div>
+
+          {/* Active model chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[#FFF0DC]/35 text-xs">Models used:</span>
+            {models.map((m) => (
+              <span
+                key={m}
+                className="px-2 py-0.5 rounded bg-[#F0BB78]/12 border border-[#F0BB78]/25 text-[#F0BB78] text-[10px] font-semibold"
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Report grid ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ReportCard
+            title="Visible Damage"
+            icon="warning"
+            content={d.visible_damage}
+          />
+          <ReportCard
+            title="Affected Area"
+            icon="location_on"
+            content={d.affected_area}
+          />
+          <ReportCard
+            title="Environmental Impact"
+            icon="eco"
+            content={d.environmental_impact}
+          />
+          <ReportCard
+            title="Recommendations"
+            icon="emergency"
+            content={d.recommendations}
+            accent
+          />
+        </div>
+
+        {/* ── Suggested queries (only when conversation is fresh) ── */}
+        {chatLength <= 2 && disasterCtx && (
+          <div className="pt-1 space-y-2">
+            <p className="text-[10px] text-white/55 uppercase tracking-widest font-semibold">
+              Suggested queries
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {getSuggestedQuestions(d.category).map((q) => (
+                <button
+                  key={q}
+                  onClick={() => onSuggestedQuery(q)}
+                  className="atm-chip hover:brightness-95 transition-all text-white px-4 py-2 rounded-full text-xs border border-[#FFF0DC]/30 hover:border-[#FFF0DC]/60"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // VideoAssessmentPanel — rendered as a chat message for video-briefing type
 // ---------------------------------------------------------------------------
 
@@ -814,6 +978,8 @@ export default function App() {
   const [timeGreeting]                            = useState(getTimeGreeting);
   const [fileMode,          setFileMode]          = useState("image"); // "image" | "video"
   const [videoAnalysis,     setVideoAnalysis]     = useState(null);
+  const [analysisMode,      setAnalysisMode]      = useState("unified"); // "unified" | "research"
+  const [unifiedResult,     setUnifiedResult]     = useState(null);
 
   const fileInputRef = useRef(null);
   const chatEndRef   = useRef(null);
@@ -923,9 +1089,122 @@ export default function App() {
     setAnalysisError(null);
     setTimeline([]);
     setVideoAnalysis(null);
+    setUnifiedResult(null);
   };
 
   // ── Analysis ───────────────────────────────────────────────────────────────
+
+  const handleUnifiedAnalyze = async () => {
+    setPhase("analyzing");
+    setModelOutputs({});
+    setAnalysisError(null);
+    setDisasterCtx(null);
+    setChatHistory([]);
+    setUnifiedResult(null);
+    setTimeline([{ id: 1, text: "Sending image to CLIP classifier..." }]);
+    setModelStatus({ clip: "running", qwen: "waiting" });
+
+    // Fake two-step progress client-side while the single API call runs
+    const t1 = setTimeout(() => {
+      setTimeline((p) => [...p, { id: 2, text: "CLIP classification in progress..." }]);
+    }, 600);
+    const t2 = setTimeout(() => {
+      setModelStatus({ clip: "complete", qwen: "running" });
+      setTimeline((p) => [...p, { id: 3, text: "CLIP done — running Qwen2-VL scene analysis..." }]);
+    }, 2200);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+      let res;
+      try {
+        res = await fetch(`${API_BASE_URL}/predict/disaster`, {
+          method: "POST",
+          body:   fd,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+
+      clearTimeout(t1); clearTimeout(t2);
+
+      if (data.status === "disabled") {
+        throw new Error(data.message || "Unified endpoint is disabled on this server.");
+      }
+
+      setModelStatus({ clip: "complete", qwen: "complete" });
+      setTimeline([
+        { id: 4, text: `CLIP: ${data.category} — ${data.classification_confidence}% confidence` },
+        { id: 5, text: `Qwen: ${data.severity} severity detected` },
+        { id: 6, text: "Disaster intelligence report ready" },
+      ]);
+
+      setUnifiedResult(data);
+      setDisasterCtx({
+        eventType:    data.category,
+        severity:     data.severity,
+        confidence:   data.classification_confidence,
+        caption:      data.visible_damage,
+        reasoning:    data.environmental_impact,
+        sceneAnalysis: data.recommendations,
+        isUnified:    true,
+      });
+
+      setChatHistory([{
+        id:      Date.now(),
+        role:    "assistant",
+        type:    "unified-briefing",
+        content: `${data.category} — ${data.severity} severity. ${data.visible_damage || ""}`,
+        time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
+
+      setPhase("ready");
+      setTimeout(() => inputRef.current?.focus(), 300);
+
+      generateThumb(file).then((thumb) => {
+        setMemory((prev) => {
+          const entry = {
+            id:              Date.now().toString(),
+            timestamp:       new Date().toISOString(),
+            eventType:       data.category,
+            severity:        data.severity,
+            confidence:      data.classification_confidence,
+            imageName:       file.name,
+            imageThumb:      thumb,
+            briefingSummary: (data.visible_damage || data.category).slice(0, 250),
+            briefingFull:    `${data.category} — ${data.severity} (${data.classification_confidence}%)`,
+            disasterCtx: {
+              eventType:     data.category,
+              confidence:    data.classification_confidence,
+              severity:      data.severity,
+              caption:       data.visible_damage,
+              reasoning:     data.environmental_impact,
+              sceneAnalysis: data.recommendations,
+            },
+          };
+          const updated = {
+            totalIncidents: prev.totalIncidents + 1,
+            lastVisit:      new Date().toISOString(),
+            assessments:    [entry, ...prev.assessments].slice(0, MAX_ASSESSMENTS),
+          };
+          saveMemory(updated);
+          return updated;
+        });
+      });
+    } catch (err) {
+      clearTimeout(t1); clearTimeout(t2);
+      const msg = err.name === "AbortError" ? "Timed out — model took too long" : err.message;
+      setAnalysisError(msg);
+      setModelStatus({ clip: "failed", qwen: "failed" });
+      setTimeout(() => { setPhase("upload"); setAnalysisError(null); }, 5000);
+    }
+  };
 
   const handleVideoAnalyze = async () => {
     setPhase("analyzing");
@@ -990,6 +1269,7 @@ export default function App() {
     }
 
     if (fileMode === "video") return handleVideoAnalyze();
+    if (analysisMode === "unified") return handleUnifiedAnalyze();
 
     setPhase("analyzing");
     setModelOutputs({});
@@ -1477,6 +1757,36 @@ export default function App() {
                 </p>
               )}
 
+              {/* Mode selector (image-only — video has no research mode) */}
+              {fileMode === "image" && (
+                <div className="flex justify-center">
+                  <div className="flex items-center gap-0.5 bg-[#0D0B0B]/60 rounded-xl p-1 border border-[#FFF0DC]/12">
+                    <button
+                      onClick={() => setAnalysisMode("unified")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        analysisMode === "unified"
+                          ? "bg-[#F0BB78] text-[#131010]"
+                          : "text-[#FFF0DC]/45 hover:text-[#FFF0DC]/75"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                      Unified Report
+                    </button>
+                    <button
+                      onClick={() => setAnalysisMode("research")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        analysisMode === "research"
+                          ? "bg-[#543A14] text-[#FFF0DC] border border-[#FFF0DC]/20"
+                          : "text-[#FFF0DC]/45 hover:text-[#FFF0DC]/75"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>biotech</span>
+                      Research Mode
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Analyze button + hints row */}
               <div className="flex flex-col items-center gap-2">
                 <button
@@ -1489,11 +1799,19 @@ export default function App() {
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
                     {fileMode === "video" ? "videocam" : "send"}
                   </span>
-                  {fileMode === "video" ? "Analyze Video" : "Analyze Image"}
+                  {fileMode === "video"
+                    ? "Analyze Video"
+                    : analysisMode === "unified"
+                      ? "Generate Report"
+                      : "Run All Models"}
                 </button>
                 <p className="text-[12px] text-white/50 flex items-center gap-1">
                   <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>auto_awesome</span>
-                  Classify incidents · assess severity · generate operational insights
+                  {fileMode === "video"
+                    ? "Extract stream metadata · generate thumbnail"
+                    : analysisMode === "unified"
+                      ? "CLIP classifies · Qwen analyzes · unified report"
+                      : "CLIP · BLIP-2 · LLaVA · Qwen — multi-model comparison"}
                 </p>
               </div>
 
@@ -1531,6 +1849,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
 
   if (phase === "analyzing") {
+    const totalModels = fileMode === "video" ? 1 : analysisMode === "unified" ? 2 : MODELS.length;
     const allDone = Object.values(modelStatus).length > 0 &&
       Object.values(modelStatus).every((s) => s === "complete" || s === "failed");
 
@@ -1555,10 +1874,20 @@ export default function App() {
                   <p className="text-white font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                     {analysisError
                       ? "Analysis failed"
-                      : fileMode === "video" ? "Extracting video stream data..." : "I'm taking a close look..."}
+                      : fileMode === "video"
+                        ? "Extracting video stream data..."
+                        : analysisMode === "unified"
+                          ? "Generating disaster intelligence report..."
+                          : "Running multi-model analysis..."}
                   </p>
                   <p className="text-[#FFF0DC] text-sm mt-0.5">
-                    {analysisError ? "Returning in 5 seconds" : fileMode === "video" ? "Running ffprobe and generating thumbnail..." : "Examining the scene from multiple angles..."}
+                    {analysisError
+                      ? "Returning in 5 seconds"
+                      : fileMode === "video"
+                        ? "Running ffprobe and generating thumbnail..."
+                        : analysisMode === "unified"
+                          ? "CLIP classifies · Qwen analyzes the scene..."
+                          : "Examining the scene from multiple angles..."}
                   </p>
                 </div>
               </div>
@@ -1572,7 +1901,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Progress panel — video vs image */}
+            {/* Progress panel — video / unified / research */}
             {fileMode === "video" ? (
               <div className="bg-[#543A14]/60 p-5 rounded-xl border border-purple-400/25 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -1599,7 +1928,56 @@ export default function App() {
                                                        "Initializing..."}
                 </p>
               </div>
+            ) : analysisMode === "unified" ? (
+              /* ── Unified mode: 2-step CLIP → Qwen progress ── */
+              <div className="bg-[#543A14]/60 p-5 rounded-xl border border-[#F0BB78]/25 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    {analysisError ? "Analysis stopped" : "Generating disaster intelligence report"}
+                  </p>
+                  <span className="text-[#F0BB78] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {Object.values(modelStatus).filter((s) => s === "complete").length} / 2
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-1.5 bg-[#0D0B0B] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#F0BB78] rounded-full transition-all duration-700 ease-out"
+                      style={{
+                        width: `${(Object.values(modelStatus).filter((s) => s === "complete").length / 2) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  {/* Per-model indicators */}
+                  <div className="flex gap-3">
+                    {[
+                      { key: "clip", label: "CLIP" },
+                      { key: "qwen", label: "Qwen2-VL" },
+                    ].map(({ key, label }) => {
+                      const s = modelStatus[key] ?? "waiting";
+                      return (
+                        <div key={key} className="flex items-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full transition-colors ${
+                            s === "complete" ? "bg-emerald-400" :
+                            s === "failed"   ? "bg-red-400"     :
+                            s === "running"  ? "bg-[#F0BB78] animate-pulse" :
+                                              "bg-[#FFF0DC]/20"
+                          }`} />
+                          <span className="text-[11px] text-[#FFF0DC]/60">{label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-[#FFF0DC]/60 text-xs">
+                  {modelStatus.clip === "running" ? "Running CLIP zero-shot classification..." :
+                   modelStatus.clip === "complete" && modelStatus.qwen === "running" ? "CLIP done — running Qwen2-VL scene analysis..." :
+                   modelStatus.qwen === "complete" ? "Combining outputs into unified report..." :
+                   analysisError ? "Analysis failed" : "Initializing pipeline..."}
+                </p>
+              </div>
             ) : (
+              /* ── Research mode: 4-model progress ── */
               <div className="bg-[#543A14]/60 p-5 rounded-xl border border-[#FFF0DC]/20 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
@@ -1708,11 +2086,18 @@ export default function App() {
           >
             Reference Context
           </h3>
-          {atmosphereLabel && (
-            <div className="-mt-2">
-              <span className="atm-label-badge">{atmosphereLabel}</span>
-            </div>
-          )}
+          <div className="-mt-2 flex flex-wrap gap-1.5">
+            {atmosphereLabel && <span className="atm-label-badge">{atmosphereLabel}</span>}
+            {fileMode === "image" && (
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                analysisMode === "unified"
+                  ? "bg-[#F0BB78]/15 border-[#F0BB78]/30 text-[#F0BB78]"
+                  : "bg-[#543A14] border-[#FFF0DC]/20 text-[#FFF0DC]/60"
+              }`}>
+                {analysisMode === "unified" ? "Unified" : "Research"}
+              </span>
+            )}
+          </div>
 
           {/* Scene image / video */}
           <div className="rounded-xl overflow-hidden border border-[#FFF0DC]/35 relative group">
@@ -1779,6 +2164,20 @@ export default function App() {
           <div className="w-full max-w-[800px] mx-auto px-4 md:px-6 py-8 flex flex-col gap-8">
 
             {chatHistory.map((msg, msgIdx) => {
+
+              /* ── Unified report message ── */
+              if (msg.type === "unified-briefing" && unifiedResult) {
+                return (
+                  <UnifiedReportPanel
+                    key={msg.id}
+                    msg={msg}
+                    unifiedResult={unifiedResult}
+                    disasterCtx={disasterCtx}
+                    onSuggestedQuery={handleChat}
+                    chatLength={chatHistory.length}
+                  />
+                );
+              }
 
               /* ── Video briefing message ── */
               if (msg.type === "video-briefing" && videoAnalysis) {

@@ -170,7 +170,7 @@ def _parse_fields(text: str):
 # Response Generation Function
 # -------------------------------------------------------------------
 
-def predict_response(image_path):
+def predict_response(image_path, prompt: str | None = None):
 
     # ---------------------------------------------------------------
     # Ensure model is loaded (no-op after first call)
@@ -198,12 +198,14 @@ def predict_response(image_path):
     # apply_chat_template converts this to a flat text string the
     # tokenizer can process, including the generation prompt marker.
 
+    effective_prompt = prompt if prompt is not None else PROMPT
+
     messages = [
         {
             "role": "user",
             "content": [
                 {"type": "image", "image": image},
-                {"type": "text",  "text":  PROMPT},
+                {"type": "text",  "text":  effective_prompt},
             ],
         }
     ]

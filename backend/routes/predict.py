@@ -6,7 +6,9 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 
+from backend.config import is_active, DISABLED_RESPONSE
 from backend.services.clip_service   import run as clip_run
 from backend.services.blip2_service  import run as blip2_run
 from backend.services.llava_service  import run as llava_run
@@ -133,6 +135,13 @@ async def predict(
             status_code=400,
             detail=f"Unknown model '{model_name}'"
         )
+
+    # ---------------------------------------------------------------
+    # Disabled model guard (deployment profile)
+    # ---------------------------------------------------------------
+
+    if not is_active(model_name):
+        return JSONResponse(status_code=200, content=DISABLED_RESPONSE)
 
     # ---------------------------------------------------------------
     # Validate image type
