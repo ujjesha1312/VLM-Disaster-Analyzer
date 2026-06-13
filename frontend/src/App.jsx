@@ -13,6 +13,13 @@ const MAX_FILE_SIZE_MB  = 10;
 const MAX_FILE_SIZE     = MAX_FILE_SIZE_MB * 1024 * 1024;
 const MAX_VIDEO_FILE_MB = 500;
 const MAX_VIDEO_FILE    = MAX_VIDEO_FILE_MB * 1024 * 1024;
+
+const UNIFIED_LOADING_MSGS = [
+  "Examining the scene...",
+  "Assessing disaster severity...",
+  "Preparing response recommendations...",
+  "Generating intelligence report...",
+];
 const VIDEO_EXTENSIONS  = new Set(["mp4", "avi", "mov", "mkv", "webm"]);
 
 // ---------------------------------------------------------------------------
@@ -980,6 +987,7 @@ export default function App() {
   const [videoAnalysis,     setVideoAnalysis]     = useState(null);
   const [analysisMode,      setAnalysisMode]      = useState("unified"); // "unified" | "research"
   const [unifiedResult,     setUnifiedResult]     = useState(null);
+  const [rotatingMsgIdx,    setRotatingMsgIdx]    = useState(0);
 
   const fileInputRef = useRef(null);
   const chatEndRef   = useRef(null);
@@ -1026,6 +1034,17 @@ export default function App() {
       resetTheme();
     }
   }, [phase, disasterCtx?.eventType]);
+
+  // ── Rotate loading messages during unified analysis ─────────────────────────
+  useEffect(() => {
+    if (phase !== "analyzing" || analysisMode !== "unified") return;
+    setRotatingMsgIdx(0);
+    const id = setInterval(
+      () => setRotatingMsgIdx((i) => (i + 1) % UNIFIED_LOADING_MSGS.length),
+      2500,
+    );
+    return () => clearInterval(id);
+  }, [phase, analysisMode]);
 
   // ── File handling ──────────────────────────────────────────────────────────
 
@@ -1101,16 +1120,15 @@ export default function App() {
     setDisasterCtx(null);
     setChatHistory([]);
     setUnifiedResult(null);
-    setTimeline([{ id: 1, text: "Sending image to CLIP classifier..." }]);
+    setTimeline([{ id: 1, text: "Submitting image to the analysis engine..." }]);
     setModelStatus({ clip: "running", qwen: "waiting" });
 
-    // Fake two-step progress client-side while the single API call runs
     const t1 = setTimeout(() => {
-      setTimeline((p) => [...p, { id: 2, text: "CLIP classification in progress..." }]);
+      setTimeline((p) => [...p, { id: 2, text: "Examining the scene..." }]);
     }, 600);
     const t2 = setTimeout(() => {
       setModelStatus({ clip: "complete", qwen: "running" });
-      setTimeline((p) => [...p, { id: 3, text: "CLIP done — running Qwen2-VL scene analysis..." }]);
+      setTimeline((p) => [...p, { id: 3, text: "Assessing disaster severity..." }]);
     }, 2200);
 
     try {
@@ -1140,9 +1158,9 @@ export default function App() {
 
       setModelStatus({ clip: "complete", qwen: "complete" });
       setTimeline([
-        { id: 4, text: `CLIP: ${data.category} — ${data.classification_confidence}% confidence` },
-        { id: 5, text: `Qwen: ${data.severity} severity detected` },
-        { id: 6, text: "Disaster intelligence report ready" },
+        { id: 4, text: `Disaster type identified: ${data.category} (${data.classification_confidence}% confidence)` },
+        { id: 5, text: `Severity assessed: ${data.severity}` },
+        { id: 6, text: "Intelligence report ready" },
       ]);
 
       setUnifiedResult(data);
@@ -1810,7 +1828,7 @@ export default function App() {
                   {fileMode === "video"
                     ? "Extract stream metadata · generate thumbnail"
                     : analysisMode === "unified"
-                      ? "CLIP classifies · Qwen analyzes · unified report"
+                      ? "Automated scene analysis · unified intelligence report"
                       : "CLIP · BLIP-2 · LLaVA · Qwen — multi-model comparison"}
                 </p>
               </div>
@@ -1886,7 +1904,7 @@ export default function App() {
                       : fileMode === "video"
                         ? "Running ffprobe and generating thumbnail..."
                         : analysisMode === "unified"
-                          ? "CLIP classifies · Qwen analyzes the scene..."
+                          ? UNIFIED_LOADING_MSGS[rotatingMsgIdx]
                           : "Examining the scene from multiple angles..."}
                   </p>
                 </div>
@@ -1929,51 +1947,27 @@ export default function App() {
                 </p>
               </div>
             ) : analysisMode === "unified" ? (
-              /* ── Unified mode: 2-step CLIP → Qwen progress ── */
+              /* ── Unified mode: single progress bar, no model names ── */
               <div className="bg-[#543A14]/60 p-5 rounded-xl border border-[#F0BB78]/25 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                    {analysisError ? "Analysis stopped" : "Generating disaster intelligence report"}
-                  </p>
-                  <span className="text-[#F0BB78] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                    {Object.values(modelStatus).filter((s) => s === "complete").length} / 2
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-1.5 bg-[#0D0B0B] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#F0BB78] rounded-full transition-all duration-700 ease-out"
-                      style={{
-                        width: `${(Object.values(modelStatus).filter((s) => s === "complete").length / 2) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  {/* Per-model indicators */}
-                  <div className="flex gap-3">
-                    {[
-                      { key: "clip", label: "CLIP" },
-                      { key: "qwen", label: "Qwen2-VL" },
-                    ].map(({ key, label }) => {
-                      const s = modelStatus[key] ?? "waiting";
-                      return (
-                        <div key={key} className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full transition-colors ${
-                            s === "complete" ? "bg-emerald-400" :
-                            s === "failed"   ? "bg-red-400"     :
-                            s === "running"  ? "bg-[#F0BB78] animate-pulse" :
-                                              "bg-[#FFF0DC]/20"
-                          }`} />
-                          <span className="text-[11px] text-[#FFF0DC]/60">{label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <p className="text-white text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                  {analysisError ? "Analysis stopped" : "Generating Disaster Intelligence Report"}
+                </p>
+                <div className="h-1.5 bg-[#0D0B0B] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#F0BB78] rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: modelStatus.qwen === "complete" ? "100%" :
+                             modelStatus.clip === "complete" ? "55%"  :
+                             modelStatus.clip === "running"  ? "20%"  : "0%",
+                    }}
+                  />
                 </div>
                 <p className="text-[#FFF0DC]/60 text-xs">
-                  {modelStatus.clip === "running" ? "Running CLIP zero-shot classification..." :
-                   modelStatus.clip === "complete" && modelStatus.qwen === "running" ? "CLIP done — running Qwen2-VL scene analysis..." :
-                   modelStatus.qwen === "complete" ? "Combining outputs into unified report..." :
-                   analysisError ? "Analysis failed" : "Initializing pipeline..."}
+                  {analysisError                      ? "Analysis failed"                  :
+                   modelStatus.qwen === "complete"    ? "Compiling final report..."         :
+                   modelStatus.clip === "complete"    ? "Assessing disaster severity..."    :
+                   modelStatus.clip === "running"     ? "Examining the scene..."            :
+                                                        "Initializing analysis engine..."}
                 </p>
               </div>
             ) : (
