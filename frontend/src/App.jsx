@@ -335,6 +335,47 @@ function buildDisasterContext(outputs) {
   return { eventType, confidence, severity, top3, caption, keywords, reasoning, sceneAnalysis, llavaMetrics, qwenMetrics, impacts, actions, infrastructure, humanImpact, environmentalImpact };
 }
 
+// ---------------------------------------------------------------------------
+// buildClipReport — fast operational assessment from CLIP only
+// Maps CLIP output + existing knowledge-base tables into the unified result
+// schema expected by UnifiedReportPanel. No Qwen required.
+// ---------------------------------------------------------------------------
+
+const _CLIP_KB_KEY = {
+  "Earthquake":           "Earthquake",
+  "Wild Fire":            "Fire",
+  "Urban Fire":           "Fire",
+  "Water Disaster":       "Flood",
+  "Landslide":            "Landslide",
+  "Infrastructure Damage":"Earthquake",
+};
+
+function buildClipReport(clipData, elapsedMs) {
+  const metrics = clipData?.metrics ?? {};
+  const type    = metrics.disaster_type    ?? "Unknown";
+  const conf    = metrics.confidence_score ?? 0;
+  const level   = metrics.confidence_level ?? "Low";
+  const top3    = metrics.top_3_predictions ?? [];
+
+  const key = _CLIP_KB_KEY[type];
+
+  const visibleDamage = top3.length
+    ? top3.map((p) => `${p.label} (${p.score}%)`).join("  ·  ")
+    : `Visual indicators consistent with ${type.toLowerCase()} conditions`;
+
+  return {
+    category:                  type,
+    classification_confidence: Math.round(conf * 100) / 100,
+    severity:                  level,
+    visible_damage:            visibleDamage,
+    affected_area:   (INFRASTRUCTURE[key]       ?? ["Area-specific assessment pending"]).slice(0, 2).join(". ") + ".",
+    environmental_impact: (ENVIRONMENTAL_IMPACTS[key] ?? ["Environmental assessment pending"]).slice(0, 2).join(". ") + ".",
+    recommendations: (ACTIONS[key]              ?? ["Deploy emergency assessment teams", "Establish incident command", "Activate emergency protocols"]).slice(0, 3).join(". ") + ".",
+    active_models:   ["Disaster Intelligence Engine"],
+    processing_time_ms: elapsedMs,
+  };
+}
+
 function buildDescription(ctx) {
   const { eventType, confidence, severity, caption, reasoning } = ctx;
 
@@ -1121,64 +1162,47 @@ export default function App() {
     setChatHistory([]);
     setUnifiedResult(null);
     setTimeline([{ id: 1, text: "Submitting image to the analysis engine..." }]);
-    setModelStatus({ clip: "running", qwen: "waiting" });
+    setModelStatus({ clip: "running" });
 
     const t1 = setTimeout(() => {
       setTimeline((p) => [...p, { id: 2, text: "Examining the scene..." }]);
     }, 600);
-    const t2 = setTimeout(() => {
-      setModelStatus({ clip: "complete", qwen: "running" });
-      setTimeline((p) => [...p, { id: 3, text: "Assessing disaster severity..." }]);
-    }, 2200);
 
+    const t0 = performance.now();
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
-      let res;
-      try {
-        res = await fetch(`${API_BASE_URL}/predict/disaster`, {
-          method: "POST",
-          body:   fd,
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json();
-
-      clearTimeout(t1); clearTimeout(t2);
+      const data = await callModel("/predict/clip", file);
+      clearTimeout(t1);
 
       if (data.status === "disabled") {
-        throw new Error(data.message || "Unified endpoint is disabled on this server.");
+        throw new Error(data.message || "Analysis engine is currently unavailable.");
       }
 
-      setModelStatus({ clip: "complete", qwen: "complete" });
+      const elapsed = Math.round(performance.now() - t0);
+      const report  = buildClipReport(data, elapsed);
+
+      setModelStatus({ clip: "complete" });
       setTimeline([
-        { id: 4, text: `Disaster type identified: ${data.category} (${data.classification_confidence}% confidence)` },
-        { id: 5, text: `Severity assessed: ${data.severity}` },
-        { id: 6, text: "Intelligence report ready" },
+        { id: 3, text: `Disaster type identified: ${report.category} (${report.classification_confidence}% confidence)` },
+        { id: 4, text: `Severity: ${report.severity}` },
+        { id: 5, text: "Intelligence report ready" },
       ]);
 
-      setUnifiedResult(data);
+      setUnifiedResult(report);
       setDisasterCtx({
-        eventType:    data.category,
-        severity:     data.severity,
-        confidence:   data.classification_confidence,
-        caption:      data.visible_damage,
-        reasoning:    data.environmental_impact,
-        sceneAnalysis: data.recommendations,
-        isUnified:    true,
+        eventType:     report.category,
+        severity:      report.severity,
+        confidence:    report.classification_confidence,
+        caption:       report.visible_damage,
+        reasoning:     report.environmental_impact,
+        sceneAnalysis: report.recommendations,
+        isUnified:     true,
       });
 
       setChatHistory([{
         id:      Date.now(),
         role:    "assistant",
         type:    "unified-briefing",
-        content: `${data.category} — ${data.severity} severity. ${data.visible_damage || ""}`,
+        content: `${report.category} — ${report.severity} severity.`,
         time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       }]);
 
@@ -1190,20 +1214,20 @@ export default function App() {
           const entry = {
             id:              Date.now().toString(),
             timestamp:       new Date().toISOString(),
-            eventType:       data.category,
-            severity:        data.severity,
-            confidence:      data.classification_confidence,
+            eventType:       report.category,
+            severity:        report.severity,
+            confidence:      report.classification_confidence,
             imageName:       file.name,
             imageThumb:      thumb,
-            briefingSummary: (data.visible_damage || data.category).slice(0, 250),
-            briefingFull:    `${data.category} — ${data.severity} (${data.classification_confidence}%)`,
+            briefingSummary: report.visible_damage.slice(0, 250),
+            briefingFull:    `${report.category} — ${report.severity} (${report.classification_confidence}%)`,
             disasterCtx: {
-              eventType:     data.category,
-              confidence:    data.classification_confidence,
-              severity:      data.severity,
-              caption:       data.visible_damage,
-              reasoning:     data.environmental_impact,
-              sceneAnalysis: data.recommendations,
+              eventType:     report.category,
+              confidence:    report.classification_confidence,
+              severity:      report.severity,
+              caption:       report.visible_damage,
+              reasoning:     report.environmental_impact,
+              sceneAnalysis: report.recommendations,
             },
           };
           const updated = {
@@ -1216,10 +1240,10 @@ export default function App() {
         });
       });
     } catch (err) {
-      clearTimeout(t1); clearTimeout(t2);
+      clearTimeout(t1);
       const msg = err.name === "AbortError" ? "Timed out — model took too long" : err.message;
       setAnalysisError(msg);
-      setModelStatus({ clip: "failed", qwen: "failed" });
+      setModelStatus({ clip: "failed" });
       setTimeout(() => { setPhase("upload"); setAnalysisError(null); }, 5000);
     }
   };
@@ -1805,6 +1829,21 @@ export default function App() {
                 </div>
               )}
 
+              {/* Research Mode notice */}
+              {fileMode === "image" && analysisMode === "research" && (
+                <div className="flex items-start gap-2.5 bg-[#543A14]/50 border border-[#F0BB78]/30 rounded-xl px-4 py-3">
+                  <span
+                    className="material-symbols-outlined text-[#F0BB78] shrink-0 mt-0.5"
+                    style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+                  >
+                    schedule
+                  </span>
+                  <p className="text-[#FFF0DC]/75 text-xs leading-relaxed">
+                    <span className="text-[#F0BB78] font-semibold">Research Mode</span> performs deeper multi-model analysis and may take 1–2 minutes.
+                  </p>
+                </div>
+              )}
+
               {/* Analyze button + hints row */}
               <div className="flex flex-col items-center gap-2">
                 <button
@@ -1867,7 +1906,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
 
   if (phase === "analyzing") {
-    const totalModels = fileMode === "video" ? 1 : analysisMode === "unified" ? 2 : MODELS.length;
+    const totalModels = fileMode === "video" ? 1 : analysisMode === "unified" ? 1 : MODELS.length;
     const allDone = Object.values(modelStatus).length > 0 &&
       Object.values(modelStatus).every((s) => s === "complete" || s === "failed");
 
@@ -1956,18 +1995,16 @@ export default function App() {
                   <div
                     className="h-full bg-[#F0BB78] rounded-full transition-all duration-700 ease-out"
                     style={{
-                      width: modelStatus.qwen === "complete" ? "100%" :
-                             modelStatus.clip === "complete" ? "55%"  :
-                             modelStatus.clip === "running"  ? "20%"  : "0%",
+                      width: modelStatus.clip === "complete" ? "100%" :
+                             modelStatus.clip === "running"  ? "30%"  : "0%",
                     }}
                   />
                 </div>
                 <p className="text-[#FFF0DC]/60 text-xs">
-                  {analysisError                      ? "Analysis failed"                  :
-                   modelStatus.qwen === "complete"    ? "Compiling final report..."         :
-                   modelStatus.clip === "complete"    ? "Assessing disaster severity..."    :
-                   modelStatus.clip === "running"     ? "Examining the scene..."            :
-                                                        "Initializing analysis engine..."}
+                  {analysisError                   ? "Analysis failed"              :
+                   modelStatus.clip === "complete" ? "Compiling final report..."    :
+                   modelStatus.clip === "running"  ? "Examining the scene..."       :
+                                                     "Initializing analysis engine..."}
                 </p>
               </div>
             ) : (
