@@ -14,9 +14,20 @@ __pycache__/
 # Pipeline outputs
 outputs/
 
-# HuggingFace / model cache
-.cache/
+# Model weights and checkpoints — never commit large binary artifacts
 /models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.pkl
+*.msgpack
+
+# Hugging Face cache (populated by from_pretrained on first run)
+.cache/
+hf_cache/
 
 # Node
 node_modules/

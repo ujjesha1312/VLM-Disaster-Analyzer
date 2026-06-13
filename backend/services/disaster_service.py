@@ -44,16 +44,12 @@ if str(_SRC) not in sys.path:
 # ---------------------------------------------------------------------------
 
 _QWEN_PROMPT = (
-    "CLIP has classified this image as \"{category}\" with {confidence:.1f}% confidence.\n\n"
-    "You are a disaster intelligence analyst. Analyze this image carefully and respond "
-    "ONLY in the exact format below. Do not add extra text.\n\n"
-    "DISASTER TYPE: [confirm or refine the CLIP classification]\n"
-    "SEVERITY: [Critical/High/Moderate/Low]\n"
-    "VISIBLE DAMAGE: [specific description of visible damage in the image]\n"
-    "AFFECTED AREA: [geographic area or infrastructure affected]\n"
-    "ENVIRONMENTAL IMPACT: [environmental consequences]\n"
-    "RECOMMENDATIONS: [3-5 immediate response actions, comma-separated]\n"
-    "CONFIDENCE: [0-100]"
+    "CLIP classified this image as \"{category}\" ({confidence:.1f}% confidence).\n"
+    "Analyze this disaster image.\n"
+    "Return ONLY in this exact format:\n"
+    "DISASTER TYPE:\n"
+    "SEVERITY:\n"
+    "ONE-LINE DESCRIPTION:"
 )
 
 _FIELD_MAP = {

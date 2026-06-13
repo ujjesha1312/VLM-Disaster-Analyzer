@@ -109,26 +109,19 @@ def _load_model():
 # Inference Settings
 # -------------------------------------------------------------------
 
-MAX_NEW_TOKENS = 200
+MAX_NEW_TOKENS = 64
 
 
 # -------------------------------------------------------------------
 # Structured Disaster Analysis Prompt
 # -------------------------------------------------------------------
 
-# Qwen2-VL uses a structured chat message format with typed content blocks.
-# Enforcing labeled-field output makes the response machine-parseable.
-# The CONFIDENCE field allows Qwen to self-report its own certainty,
-# which overrides the per-token probability estimate when it is valid.
-
 PROMPT = (
-    "Analyze this disaster scene. Respond ONLY in this format:\n"
-    "DISASTER TYPE: [type]\n"
-    "SEVERITY: [Critical/High/Moderate/Low]\n"
-    "AFFECTED POPULATION: [estimate]\n"
-    "INFRASTRUCTURE: [status]\n"
-    "ENVIRONMENT: [impact]\n"
-    "CONFIDENCE: [0-100]"
+    "Analyze this disaster image.\n"
+    "Return ONLY in this exact format:\n"
+    "DISASTER TYPE:\n"
+    "SEVERITY:\n"
+    "ONE-LINE DESCRIPTION:"
 )
 
 
@@ -231,8 +224,11 @@ def predict_response(image_path, prompt: str | None = None):
         generated = model.generate(
             **inputs,
             max_new_tokens=MAX_NEW_TOKENS,
+            do_sample=False,
+            num_beams=1,
+            use_cache=True,
             output_scores=True,
-            return_dict_in_generate=True
+            return_dict_in_generate=True,
         )
 
 
