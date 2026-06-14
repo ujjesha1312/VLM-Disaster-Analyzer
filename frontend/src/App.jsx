@@ -35,7 +35,7 @@ const MODELS = [
 
 const MODEL_TIMELINE_LABEL = {
   clip:  (data) => data?.metrics?.disaster_type
-    ? `I'm reading this as ${data.metrics.disaster_type.toLowerCase()} — ${data.metrics.confidence_score}% confidence`
+    ? `Scene classified: ${data.metrics.disaster_type}`
     : "Initial scene classification complete",
   blip2: (_d) => "Scene description gathered",
   llava: (_d) => "Damage indicators and structural analysis complete",
@@ -377,13 +377,7 @@ function buildClipReport(clipData, elapsedMs) {
 }
 
 function buildDescription(ctx) {
-  const { eventType, confidence, severity, caption, reasoning } = ctx;
-
-  const certainty =
-    confidence > 88 ? "high confidence"
-    : confidence > 75 ? "strong confidence"
-    : confidence > 60 ? "moderate confidence"
-    : "preliminary confidence";
+  const { eventType, severity, caption, reasoning } = ctx;
 
   const observation = caption
     ? caption.charAt(0).toUpperCase() + caption.slice(1).replace(/\.$/, "")
@@ -401,8 +395,7 @@ function buildDescription(ctx) {
       : "Situation is under assessment. Standby protocols apply.";
 
   return (
-    `I've finished reviewing the scene you shared. I'm reading this as a ${severity.toLowerCase()}-severity ${eventType.toLowerCase()} event ` +
-    `with ${certainty} (${confidence}%). ` +
+    `I've finished reviewing the scene you shared. I'm reading this as a ${severity.toLowerCase()}-severity ${eventType.toLowerCase()} event. ` +
     `${observation}. ` +
     `${urgencyLine} ` +
     `I've outlined key risks, recommended actions, and impact areas below — ask me anything about this incident.`
@@ -422,7 +415,7 @@ function buildFallbackResponse(question, ctx) {
   const scene     = ctx?.sceneAnalysis ?? "";
 
   if (/sever|how bad|intensity|danger/i.test(q))
-    return `Looking at the ${event.toLowerCase()} scene you uploaded, I assess this as ${sev.toLowerCase()} severity — ${conf}% confidence. ${reasoning.split(".")[0] || "The visible damage indicators are consistent with substantial impact conditions"}.`;
+    return `Looking at the ${event.toLowerCase()} scene you uploaded, I assess this as ${sev.toLowerCase()} severity. ${reasoning.split(".")[0] || "The visible damage indicators are consistent with substantial impact conditions"}.`;
 
   if (/resource|equip|personnel|deploy/i.test(q)) {
     const list = (ACTIONS[event] ?? []).slice(0, 4).map((a) => `• ${a}`).join("\n");
@@ -448,7 +441,7 @@ function buildFallbackResponse(question, ctx) {
   }
 
   const context = scene.split(".")[0] || reasoning.split(".")[0] || "";
-  return `Based on the ${event.toLowerCase()} scene you uploaded (${conf}% confidence, ${sev.toLowerCase()} severity)${context ? `: ${context}.` : "."} What specific aspect of the situation would you like to understand better?`;
+  return `Based on the ${event.toLowerCase()} scene you uploaded (${sev.toLowerCase()} severity)${context ? `: ${context}.` : "."} What specific aspect of the situation would you like to understand better?`;
 }
 
 // ---------------------------------------------------------------------------
@@ -496,20 +489,6 @@ function severityChipClass(severity) {
 // ---------------------------------------------------------------------------
 // EvidencePanel — collapsible model output details inside the briefing
 // ---------------------------------------------------------------------------
-
-function ConfidenceBar({ score, color = "bg-blue-400" }) {
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs text-[#FFF0DC]/70">
-        <span>Confidence</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{score}%</span>
-      </div>
-      <div className="h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(score, 100)}%` }} />
-      </div>
-    </div>
-  );
-}
 
 function LevelBadge({ level }) {
   const cls =
@@ -578,9 +557,6 @@ function EvidencePanel({ modelOutputs }) {
                   <span className="text-white text-base font-semibold">{clipM.disaster_type ?? "—"}</span>
                   {clipM.confidence_level && <LevelBadge level={clipM.confidence_level} />}
                 </div>
-                {clipM.confidence_score != null && (
-                  <ConfidenceBar score={clipM.confidence_score} color="bg-blue-400" />
-                )}
                 {clipM.top_3_predictions?.length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] text-white/55 uppercase tracking-wider">Top predictions</p>
@@ -590,7 +566,6 @@ function EvidencePanel({ modelOutputs }) {
                         <div className="flex-1 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
                           <div className="h-full bg-[#F0BB78]/70 rounded-full" style={{ width: `${Math.min(p.score, 100)}%` }} />
                         </div>
-                        <span className="text-white/55 text-[10px] shrink-0 w-10 text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{p.score}%</span>
                       </div>
                     ))}
                   </div>
@@ -620,9 +595,6 @@ function EvidencePanel({ modelOutputs }) {
                     ))}
                   </div>
                 )}
-                {blip2M.confidence_score != null && (
-                  <ConfidenceBar score={blip2M.confidence_score} color="bg-violet-400" />
-                )}
               </>
             )}
           </div>
@@ -641,9 +613,6 @@ function EvidencePanel({ modelOutputs }) {
                 <KVRow label="Affected Area"         value={llavaM.affected_areas} />
                 <KVRow label="Infrastructure Damage" value={llavaM.infrastructure_damage} />
                 <KVRow label="Recommended Action"    value={llavaM.recommended_action} />
-                {llavaM.confidence_score != null && (
-                  <ConfidenceBar score={llavaM.confidence_score} color="bg-emerald-400" />
-                )}
                 {llavaM.raw_assessment && (
                   <div>
                     <button
@@ -680,9 +649,6 @@ function EvidencePanel({ modelOutputs }) {
                 <KVRow label="Affected Population"   value={qwenM.affected_population} />
                 <KVRow label="Infrastructure Status" value={qwenM.infrastructure_status} />
                 <KVRow label="Environmental Impact"  value={qwenM.environmental_impact} />
-                {qwenM.confidence_score != null && (
-                  <ConfidenceBar score={qwenM.confidence_score} color="bg-orange-400" />
-                )}
                 {qwenM.raw_analysis && (
                   <div>
                     <button
@@ -786,31 +752,10 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
             </div>
           </div>
 
-          {/* Confidence bar */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2.5">
-              <span className="text-[#FFF0DC]/60 text-sm">Classification confidence</span>
-              <div className="flex items-center gap-2">
-                <div className="w-28 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#F0BB78] rounded-full transition-all"
-                    style={{ width: `${Math.min(conf, 100)}%` }}
-                  />
-                </div>
-                <span
-                  className="text-[#FFF0DC] text-sm font-semibold"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {conf}%
-                </span>
-              </div>
-            </div>
-            {procMs && (
-              <span className="text-[#FFF0DC]/30 text-xs" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                {(procMs / 1000).toFixed(1)}s
-              </span>
-            )}
-          </div>
+          {/* Professional subtitle */}
+          <p className="text-[#FFF0DC]/60 text-sm">
+            Assessment generated using the Disaster Intelligence Engine.
+          </p>
 
           {/* Active model chips */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -1182,7 +1127,7 @@ export default function App() {
 
       setModelStatus({ clip: "complete" });
       setTimeline([
-        { id: 3, text: `Disaster type identified: ${report.category} (${report.classification_confidence}% confidence)` },
+        { id: 3, text: `Disaster type identified: ${report.category}` },
         { id: 4, text: `Severity: ${report.severity}` },
         { id: 5, text: "Intelligence report ready" },
       ]);
@@ -1220,7 +1165,7 @@ export default function App() {
             imageName:       file.name,
             imageThumb:      thumb,
             briefingSummary: report.visible_damage.slice(0, 250),
-            briefingFull:    `${report.category} — ${report.severity} (${report.classification_confidence}%)`,
+            briefingFull:    `${report.category} — ${report.severity}`,
             disasterCtx: {
               eventType:     report.category,
               confidence:    report.classification_confidence,
@@ -2157,7 +2102,7 @@ export default function App() {
                   className="absolute bottom-2 left-2 bg-[#F0BB78]/70 backdrop-blur-sm px-2 py-1 rounded text-[10px] uppercase text-white"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  {fileMode === "video" ? "VIDEO" : `REF_ID: ${disasterCtx?.eventType?.slice(0, 3).toUpperCase() ?? "EVT"}_${String(disasterCtx?.confidence ?? 0).replace(".", "")}`}
+                  {fileMode === "video" ? "VIDEO" : `REF_ID: ${disasterCtx?.eventType?.slice(0, 3).toUpperCase() ?? "EVT"}`}
                 </div>
               </>
             ) : (
@@ -2173,12 +2118,6 @@ export default function App() {
               <span className="text-[#FFF0DC]/70 text-xs">Type</span>
               <span className="text-white text-xs font-semibold truncate max-w-[110px] text-right" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                 {disasterCtx?.eventType ?? "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center border-b border-[#FFF0DC]/20 pb-1.5">
-              <span className="text-[#FFF0DC]/70 text-xs">Confidence</span>
-              <span className="text-[#FFF0DC] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                {disasterCtx?.confidence ?? 0}%
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-[#FFF0DC]/20 pb-1.5">
@@ -2254,24 +2193,10 @@ export default function App() {
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-[#FFF0DC]/60 text-sm">Confidence</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-28 h-1.5 bg-[#543A14]/50 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-[#F0BB78] rounded-full"
-                                  style={{ width: `${Math.min(disasterCtx.confidence, 100)}%` }}
-                                />
-                              </div>
-                              <span
-                                className="text-[#FFF0DC] text-sm font-semibold"
-                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                              >
-                                {disasterCtx.confidence}%
-                              </span>
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <p className="text-[#FFF0DC]/60 text-sm">
+                            Disaster indicators detected and assessed successfully.
+                          </p>
                           {atmosphereLabel && <span className="atm-label-badge">{atmosphereLabel}</span>}
                         </div>
                         <p className="text-white/80 text-[17px] leading-[28px]">{msg.content}</p>
