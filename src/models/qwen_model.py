@@ -1,9 +1,13 @@
+import logging
+
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 from pathlib import Path
 from PIL import Image
 import sys
 import threading
 import torch
+
+logger = logging.getLogger(__name__)
 
 # Make src/ importable when this file is run standalone.
 _SRC = Path(__file__).resolve().parent.parent
@@ -109,7 +113,7 @@ def _load_model():
 # Inference Settings
 # -------------------------------------------------------------------
 
-MAX_NEW_TOKENS = 64
+MAX_NEW_TOKENS = 1024
 
 
 # -------------------------------------------------------------------
@@ -283,10 +287,9 @@ def predict_response(image_path, prompt: str | None = None):
     # Debug logging
     # ---------------------------------------------------------------
 
-    print("\nQwen2-VL Response:")
-    print(response)
-    print(f"Token confidence: {round(token_confidence, 2)}%")
-    print(f"Final confidence: {confidence_score}%")
+    logger.debug(f"Qwen2-VL Response:\n{response}")
+    logger.debug(f"Token confidence: {round(token_confidence, 2)}%")
+    logger.debug(f"Final confidence: {confidence_score}%")
 
 
     # ---------------------------------------------------------------
@@ -309,14 +312,14 @@ def predict_response(image_path, prompt: str | None = None):
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
-
+    logging.basicConfig(level=logging.DEBUG)
     image_path = "test.jpg"
 
     result = predict_response(image_path)
 
-    print("\nScene Understanding Result")
-    print("-------------------------")
-    print(f"Model         : {result['model']}")
-    print(f"Disaster Type : {result['metrics']['disaster_type']}")
-    print(f"Severity      : {result['metrics']['severity']}")
-    print(f"Confidence    : {result['metrics']['confidence_score']}%")
+    logger.info("\nScene Understanding Result")
+    logger.info("-------------------------")
+    logger.info(f"Model         : {result['model']}")
+    logger.info(f"Disaster Type : {result['metrics']['disaster_type']}")
+    logger.info(f"Severity      : {result['metrics']['severity']}")
+    logger.info(f"Confidence    : {result['metrics']['confidence_score']}%")

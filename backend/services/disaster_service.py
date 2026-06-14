@@ -26,6 +26,7 @@ Response schema (returned by run()):
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
 import logging
@@ -47,9 +48,13 @@ _QWEN_PROMPT = (
     "CLIP classified this image as \"{category}\" ({confidence:.1f}% confidence).\n"
     "Analyze this disaster image.\n"
     "Return ONLY in this exact format:\n"
-    "DISASTER TYPE:\n"
-    "SEVERITY:\n"
-    "ONE-LINE DESCRIPTION:"
+    "DISASTER TYPE: <type>\n"
+    "SEVERITY: <critical/high/moderate/low>\n"
+    "DESCRIPTION: <one sentence>\n"
+    "VISIBLE DAMAGE: <one sentence about physical damage visible in image>\n"
+    "AFFECTED AREA: <one sentence about geographic/structural scope>\n"
+    "ENVIRONMENTAL IMPACT: <one sentence about environmental consequence>\n"
+    "RECOMMENDATIONS: <one sentence on immediate action needed>"
 )
 
 _FIELD_MAP = {
@@ -111,7 +116,7 @@ def _extract_clip(clip_raw: dict) -> tuple[str, float]:
 # Main pipeline
 # ---------------------------------------------------------------------------
 
-def run(image_path: str) -> dict:
+async def run(image_path: str) -> dict:
     """
     Run the two-stage CLIP → Qwen disaster analysis pipeline.
 
@@ -121,18 +126,26 @@ def run(image_path: str) -> dict:
     Returns:
         Unified disaster intelligence report dict.
     """
+    from backend.services.gpu_queue import run_with_gpu_lock
+
     t0 = time.perf_counter()
 
     # ── Stage 1: CLIP ────────────────────────────────────────────────────────
     from models.clip_model import predict_disaster as clip_predict
-    clip_raw = clip_predict(image_path)
+    clip_raw = await run_with_gpu_lock(
+        asyncio.to_thread(clip_predict, image_path),
+        "CLIP",
+    )
     category, confidence = _extract_clip(clip_raw)
     log.info(f"CLIP → {category} ({confidence:.1f}%)")
 
     # ── Stage 2: Qwen with CLIP context ──────────────────────────────────────
     from models.qwen_model import predict_response as qwen_predict
     prompt = _QWEN_PROMPT.format(category=category, confidence=confidence)
-    qwen_raw = qwen_predict(image_path, prompt=prompt)
+    qwen_raw = await run_with_gpu_lock(
+        asyncio.to_thread(qwen_predict, image_path, prompt),
+        "Qwen",
+    )
 
     qwen_text = qwen_raw.get("metrics", {}).get("raw_analysis", "")
     fields, parsed_conf = _parse_qwen_fields(qwen_text)

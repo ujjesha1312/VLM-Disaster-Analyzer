@@ -107,7 +107,7 @@ async def predict_disaster(
 
         # ── Run unified pipeline ─────────────────────────────────────────────
         from backend.services.disaster_service import run
-        result = run(str(tmp_path))
+        result = await run(str(tmp_path))
         return JSONResponse(result)
 
     except ValueError as exc:

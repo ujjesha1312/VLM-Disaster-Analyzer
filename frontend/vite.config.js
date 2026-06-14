@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
   // Load .env.development / .env.production so the proxy target
   // stays in sync with VITE_API_URL instead of being hardcoded.
   const env = loadEnv(mode, process.cwd(), '')
-  const backendUrl = env.VITE_API_URL || 'http://localhost:8000'
+  const backendUrl = env.VITE_API_URL
 
   return {
     plugins: [react()],

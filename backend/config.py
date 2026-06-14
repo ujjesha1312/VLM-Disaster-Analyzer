@@ -22,15 +22,20 @@ log = logging.getLogger(__name__)
 # Active models
 # ---------------------------------------------------------------------------
 
+VALID_MODEL_KEYS = {"clip", "blip2", "llava", "qwen", "gpt4v"}
+
+
 def _parse_active_models() -> frozenset[str]:
     raw = os.getenv("ACTIVE_MODELS", "clip,qwen")
     models = frozenset(m.strip().lower() for m in raw.split(",") if m.strip())
-    valid   = {"clip", "blip2", "llava", "qwen", "gpt4v"}
-    unknown = models - valid
+    unknown = models - VALID_MODEL_KEYS
     if unknown:
-        log.warning(f"Unknown model keys in ACTIVE_MODELS (ignored): {unknown}")
-    active = models & valid
-    log.info(f"Active models: {sorted(active)}")
+        log.warning(
+            f"[Config] Unknown model keys in ACTIVE_MODELS: {unknown}. "
+            f"Valid keys: {VALID_MODEL_KEYS}. Check for typos."
+        )
+    active = models & VALID_MODEL_KEYS
+    log.info(f"[Config] Active models: {sorted(active)}")
     return active
 
 

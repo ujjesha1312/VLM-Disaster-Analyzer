@@ -6,7 +6,7 @@ import SplashScreen from "./SplashScreen";
 // Backend
 // ---------------------------------------------------------------------------
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE_URL =import.meta.env.VITE_API_URL || "https://providing-earthy-phonebook.ngrok-free.dev";
 const MODEL_TIMEOUT_MS = 180_000;
 const CHAT_TIMEOUT_MS  =  60_000;
 const MAX_FILE_SIZE_MB  = 10;

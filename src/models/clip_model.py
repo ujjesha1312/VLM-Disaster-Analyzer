@@ -1,9 +1,13 @@
+import logging
+
 from transformers import CLIPProcessor, CLIPModel
 from pathlib import Path
 from PIL import Image
 import sys
 import threading
 import torch
+
+logger = logging.getLogger(__name__)
 
 # Make src/ importable when this file is run standalone.
 _SRC = Path(__file__).resolve().parent.parent
@@ -186,9 +190,9 @@ def predict_disaster(image_path):
     # Debug Logging
     # ---------------------------------------------------------------
 
-    print("\nPrediction Scores:")
+    logger.debug("Prediction Scores:")
     for i, label in enumerate(display_labels):
-        print(f"{label}: {probs[0][i].item() * 100:.2f}%")
+        logger.debug(f"{label}: {probs[0][i].item() * 100:.2f}%")
 
 
     # ---------------------------------------------------------------
@@ -211,15 +215,15 @@ def predict_disaster(image_path):
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
-
+    logging.basicConfig(level=logging.DEBUG)
     image_path = "test.jpg"
 
     result = predict_disaster(image_path)
 
-    print("\nPrediction Result")
-    print("-------------------------")
-    print(f"Model      : {result['model']}")
-    print(f"Disaster   : {result['metrics']['disaster_type']}")
-    print(f"Confidence : {result['metrics']['confidence_score']}%")
-    print(f"Level      : {result['metrics']['confidence_level']}")
-    print(f"Top-3      : {result['metrics']['top_3_predictions']}")
+    logger.info("\nPrediction Result")
+    logger.info("-------------------------")
+    logger.info(f"Model      : {result['model']}")
+    logger.info(f"Disaster   : {result['metrics']['disaster_type']}")
+    logger.info(f"Confidence : {result['metrics']['confidence_score']}%")
+    logger.info(f"Level      : {result['metrics']['confidence_level']}")
+    logger.info(f"Top-3      : {result['metrics']['top_3_predictions']}")

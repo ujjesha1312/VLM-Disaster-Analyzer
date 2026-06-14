@@ -67,22 +67,30 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Allow the React dev server (port 5173) and any production origin.
+# Allow the React dev server and the Vercel production frontend.
+# allow_credentials=True enables cookies/auth headers from these origins.
+# Specific origins are required when allow_credentials=True (wildcard not allowed).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://vlm-disaster-analyzer.vercel.app",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Specific routes must be registered before parameterised ones.
-# disaster_router owns POST /predict/disaster — it must come before
-# predict_router's POST /predict/{model_name}, otherwise FastAPI
-# matches "disaster" as the model_name parameter and returns 400.
+# Route registration order matters — FastAPI matches in registration order.
+# Rules:
+#   1. disaster_router  (/predict/disaster)     before predict_router (/predict/{model_name})
+#   2. video_router     (/predict/video/*)      before predict_router (/predict/{model_name})
+# Both ensure specific paths are not swallowed by the wildcard route.
 app.include_router(disaster_router,  tags=["Unified Inference"])
+app.include_router(video_router,     tags=["Video VLM Inference"])
 app.include_router(predict_router,   tags=["VLM Inference"])
 app.include_router(chat_router,      tags=["Intelligence Chat"])
-app.include_router(video_router,     tags=["Video VLM Inference"])
 
 
 # ---------------------------------------------------------------------------

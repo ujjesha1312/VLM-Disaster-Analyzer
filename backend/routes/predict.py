@@ -2,10 +2,13 @@
 predict.py — FastAPI router for VLM inference endpoints
 """
 
+import asyncio
+import json
 import tempfile
 from pathlib import Path
+from typing import List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from backend.config import is_active, DISABLED_RESPONSE
@@ -14,6 +17,7 @@ from backend.services.blip2_service  import run as blip2_run
 from backend.services.llava_service  import run as llava_run
 from backend.services.qwen_service   import run as qwen_run
 from backend.services.gpt4v_service  import run as gpt4v_run
+from backend.services.gpu_queue      import run_with_gpu_lock
 
 router = APIRouter()
 
@@ -117,6 +121,83 @@ def list_models():
 
 
 # -------------------------------------------------------------------
+# POST /predict/sequential
+# -------------------------------------------------------------------
+
+@router.post("/predict/sequential")
+async def predict_sequential(
+    models: str = Form(default="clip,qwen"),
+    file: UploadFile = File(...),
+):
+    """
+    Run an ordered list of models one at a time, serialized through the GPU lock.
+    Each model completes fully before the next starts.
+
+    Send `models` as a JSON array string (["clip","qwen"]) or comma-separated
+    ("clip,qwen") in a multipart/form-data request alongside the image file.
+    """
+    # ── Parse model list ─────────────────────────────────────────────────────
+    try:
+        model_list: List[str] = json.loads(models)
+    except (json.JSONDecodeError, ValueError):
+        model_list = [m.strip() for m in models.split(",") if m.strip()]
+
+    unknown = [m for m in model_list if m not in _DISPATCH]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown model(s): {unknown}. Valid: {list(_DISPATCH.keys())}",
+        )
+
+    # ── Validate file ─────────────────────────────────────────────────────────
+    if file.content_type is not None and file.content_type not in _ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported image type")
+
+    contents = await file.read()
+    if len(contents) > _MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    suffix = _CONTENT_TYPE_TO_SUFFIX.get(file.content_type or "", ".jpg")
+    tmp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = Path(tmp.name)
+
+        results: dict = {}
+        for model_name in model_list:
+            if not is_active(model_name):
+                results[model_name] = DISABLED_RESPONSE
+                continue
+            try:
+                results[model_name] = await run_with_gpu_lock(
+                    asyncio.to_thread(_DISPATCH[model_name], str(tmp_path)),
+                    model_name,
+                )
+            except Exception as exc:
+                results[model_name] = {"error": str(exc)}
+
+        return JSONResponse({
+            "results": results,
+            "order":   model_list,
+            "mode":    "sequential",
+        })
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid image: {exc}")
+    except Exception as exc:
+        import logging, traceback
+        logging.getLogger(__name__).error(
+            "Sequential inference error: %s\n%s", exc, traceback.format_exc()
+        )
+        raise HTTPException(status_code=500, detail=f"Inference error: {exc}")
+    finally:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+
+
+# -------------------------------------------------------------------
 # POST /predict/{model_name}
 # -------------------------------------------------------------------
 
@@ -188,10 +269,13 @@ async def predict(
             tmp_path = Path(tmp.name)
 
         # -----------------------------------------------------------
-        # Run selected model
+        # Run selected model (serialized through GPU lock)
         # -----------------------------------------------------------
 
-        result = _DISPATCH[model_name](str(tmp_path))
+        result = await run_with_gpu_lock(
+            asyncio.to_thread(_DISPATCH[model_name], str(tmp_path)),
+            model_name,
+        )
 
     except EnvironmentError as exc:
 
@@ -212,13 +296,12 @@ async def predict(
         )
 
     except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        return {
-            "error": str(exc),
-            "type":  type(exc).__name__,
-            "trace": traceback.format_exc(),
-        }
+        import logging, traceback
+        logging.getLogger(__name__).error(
+            "Unhandled inference error for model '%s': %s\n%s",
+            model_name, exc, traceback.format_exc(),
+        )
+        raise HTTPException(status_code=500, detail=f"Inference error: {exc}")
 
     finally:
 
