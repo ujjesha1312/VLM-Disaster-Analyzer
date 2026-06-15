@@ -130,7 +130,7 @@ async def analyze_video(
     tmp_path = await _save_temp_video(video)
     try:
         from backend.services.video_service import process_video
-        result = process_video(tmp_path)
+        result = await process_video(tmp_path)
         return JSONResponse(result)
     except Exception as exc:
         log.exception("Video analysis error")

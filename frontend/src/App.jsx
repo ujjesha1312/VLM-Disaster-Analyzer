@@ -909,11 +909,14 @@ function SimilarEventsCard({ events }) {
 }
 
 // ---------------------------------------------------------------------------
-// VideoAssessmentPanel — rendered as a chat message for video-briefing type
+// VideoAssessmentPanel — rendered as a chat message for video-briefing type.
+// When unifiedResult is provided the full disaster report is shown alongside
+// stream metadata. When absent, falls back to the metadata-only view.
 // ---------------------------------------------------------------------------
 
-function VideoAssessmentPanel({ msg, videoAnalysis }) {
-  const fi    = videoAnalysis?.file_info;
+function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
+  // Support both response schemas: new (video_metadata) and legacy (file_info)
+  const fi    = videoAnalysis?.video_metadata ?? videoAnalysis?.file_info;
   const an    = videoAnalysis?.analysis;
   const thumb = videoAnalysis?.thumbnail_b64;
 
@@ -923,6 +926,168 @@ function VideoAssessmentPanel({ msg, videoAnalysis }) {
     return m ? `${m}m ${sec.toString().padStart(2, "0")}s` : `${sec}s`;
   }
 
+  const SEV_COLOR = {
+    Critical: "text-red-400 border-red-400/40 bg-red-500/10",
+    High:     "text-orange-400 border-orange-400/40 bg-orange-500/10",
+    Moderate: "text-amber-400 border-amber-400/40 bg-amber-500/10",
+    Low:      "text-emerald-400 border-emerald-400/40 bg-emerald-500/10",
+  };
+  const sevColor = SEV_COLOR[unifiedResult?.severity] ?? "text-[#FFF0DC]/70 border-[#FFF0DC]/20 bg-[#FFF0DC]/5";
+
+  const StreamCard = () => {
+    if (!fi) return null;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl overflow-hidden border border-purple-400/30 bg-[#0D0B0B]">
+          {thumb ? (
+            <img src={thumb} alt="Video thumbnail" className="w-full aspect-video object-cover" />
+          ) : (
+            <div className="w-full aspect-video flex items-center justify-center">
+              <span className="material-symbols-outlined text-purple-300 text-4xl">movie</span>
+            </div>
+          )}
+          <div className="px-3 py-2 bg-[#543A14]/60">
+            <p className="text-[10px] text-[#FFF0DC]/45 uppercase tracking-wider font-semibold">
+              Thumbnail · 1 s seek
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 space-y-2">
+          <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest mb-3">
+            Stream Properties
+          </h4>
+          {[
+            ["Duration",     fi.duration_s ? fmtDuration(fi.duration_s) : "—"],
+            ["Frame rate",   fi.fps ? `${fi.fps.toFixed(1)} fps` : "—"],
+            ["Resolution",   fi.resolution ?? "—"],
+            ["Codec",        fi.codec ? fi.codec.toUpperCase() : "—"],
+            ["Container",    fi.format ?? "—"],
+            ["File size",    `${(fi.size_mb ?? 0).toFixed(1)} MB`],
+            ["Total frames", fi.total_frames ? fi.total_frames.toLocaleString() : "—"],
+          ].map(([k, v]) => (
+            <div key={k} className="flex justify-between items-center border-b border-[#FFF0DC]/10 pb-1.5 last:border-none last:pb-0">
+              <span className="text-[#FFF0DC]/55 text-xs">{k}</span>
+              <span className="text-white/80 text-xs font-semibold"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Full disaster report ──────────────────────────────────────────────────
+  if (unifiedResult) {
+    const d             = unifiedResult;
+    const votes         = videoAnalysis?.frame_votes        ?? {};
+    const framesAnalyzed = videoAnalysis?.frames_analyzed   ?? 0;
+    const similarEvents  = d.similar_events                  ?? [];
+
+    return (
+      <article className="flex gap-4 items-start message-enter">
+        <div className="w-8 h-8 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mt-1">
+          <span className="material-symbols-outlined text-purple-300"
+            style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}>
+            videocam
+          </span>
+        </div>
+
+        <div className="flex-1 space-y-5 pt-1">
+          {/* Header */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+              <h2 className="text-white text-3xl font-bold leading-tight"
+                style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                {d.category}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${sevColor}`}>
+                  {d.severity}
+                </span>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-purple-500/15 text-purple-300 border-purple-400/35">
+                  Video · {framesAnalyzed} frames
+                </span>
+                <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+                  <span className="material-symbols-outlined"
+                    style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>
+                    check_circle
+                  </span>
+                  {Math.round(d.classification_confidence)}% confidence
+                </span>
+              </div>
+            </div>
+            {d.visible_damage && (
+              <p className="text-white/70 text-[15px] leading-relaxed">{d.visible_damage}</p>
+            )}
+          </div>
+
+          {/* Thumbnail + stream properties */}
+          <StreamCard />
+
+          {/* Disaster assessment fields */}
+          <div className="space-y-3">
+            {[
+              ["Affected Area",        d.affected_area],
+              ["Environmental Impact", d.environmental_impact],
+              ["Recommendations",      d.recommendations],
+            ].filter(([, v]) => v).map(([label, value]) => (
+              <div key={label} className="bg-[#543A14]/40 rounded-xl border border-[#FFF0DC]/15 p-4">
+                <p className="text-[#FFF0DC]/50 text-[10px] font-semibold uppercase tracking-widest mb-1.5">
+                  {label}
+                </p>
+                <p className="text-white/80 text-sm leading-relaxed">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Similar historical events */}
+          {similarEvents.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-[#FFF0DC]/60 text-[10px] font-semibold uppercase tracking-widest">
+                Similar Historical Events
+              </h4>
+              <div className="space-y-2">
+                {similarEvents.slice(0, 3).map((ev, i) => (
+                  <div key={i}
+                    className="bg-[#0D0B0B] rounded-xl border border-[#FFF0DC]/10 p-3 flex gap-3 items-start">
+                    <span className="text-[#FFF0DC]/30 text-xs font-bold shrink-0 pt-0.5">#{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white/80 text-sm font-semibold">
+                        {ev.event}{" "}
+                        <span className="text-[#FFF0DC]/40 font-normal">({ev.year})</span>
+                      </p>
+                      <p className="text-[#FFF0DC]/50 text-xs">{ev.location}</p>
+                      {ev.description && (
+                        <p className="text-white/50 text-xs mt-1 leading-relaxed">{ev.description}</p>
+                      )}
+                    </div>
+                    <span className={`text-xs font-bold shrink-0 ${
+                      ev.similarity >= 80 ? "text-emerald-400" :
+                      ev.similarity >= 65 ? "text-amber-400" : "text-[#FFF0DC]/40"
+                    }`}>
+                      {ev.similarity?.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Frame vote breakdown */}
+          {Object.keys(votes).length > 0 && (
+            <p className="text-[#FFF0DC]/25 text-[9px]">
+              Frame classification votes:{" "}
+              {Object.entries(votes).map(([c, v]) => `${c} (${v})`).join(" · ")}
+              {" · "}Best frame analyzed with CLIP + Qwen2-VL
+            </p>
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  // ── Metadata-only fallback (models disabled or frame extraction failed) ────
   if (!fi || !an) return null;
 
   return (
@@ -958,45 +1123,8 @@ function VideoAssessmentPanel({ msg, videoAnalysis }) {
           <p className="text-white/70 text-[15px] leading-relaxed whitespace-pre-line">{an.summary}</p>
         </div>
 
-        {/* Thumbnail + Stream properties */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl overflow-hidden border border-purple-400/30 bg-[#0D0B0B]">
-            {thumb ? (
-              <img src={thumb} alt="Video thumbnail"
-                className="w-full aspect-video object-cover" />
-            ) : (
-              <div className="w-full aspect-video flex items-center justify-center">
-                <span className="material-symbols-outlined text-purple-300 text-4xl">movie</span>
-              </div>
-            )}
-            <div className="px-3 py-2 bg-[#543A14]/60">
-              <p className="text-[10px] text-[#FFF0DC]/45 uppercase tracking-wider font-semibold">
-                Thumbnail · 1 s seek
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-[#543A14]/60 p-4 rounded-xl border border-[#FFF0DC]/20 space-y-2">
-            <h4 className="text-[#FFF0DC] text-xs font-semibold uppercase tracking-widest mb-3">
-              Stream Properties
-            </h4>
-            {[
-              ["Duration",    fmtDuration(fi.duration_s)],
-              ["Frame rate",  `${fi.fps.toFixed(1)} fps`],
-              ["Resolution",  fi.resolution],
-              ["Codec",       fi.codec.toUpperCase()],
-              ["Container",   fi.format],
-              ["File size",   `${fi.size_mb.toFixed(1)} MB`],
-              ["Total frames",fi.total_frames.toLocaleString()],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between items-center border-b border-[#FFF0DC]/10 pb-1.5 last:border-none last:pb-0">
-                <span className="text-[#FFF0DC]/55 text-xs">{k}</span>
-                <span className="text-white/80 text-xs font-semibold"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Thumbnail + stream properties */}
+        <StreamCard />
 
         {/* Pending models */}
         <div className="bg-[#0D0B0B] rounded-xl border border-purple-400/25 p-4 space-y-3">
@@ -1287,28 +1415,73 @@ export default function App() {
     setAnalysisError(null);
     setDisasterCtx(null);
     setChatHistory([]);
+    setUnifiedResult(null);
     setTimeline([{ id: 0, text: "Receiving video and extracting stream properties..." }]);
     setModelStatus({ video: "running" });
 
     try {
       const data = await callVideoAnalysis(file);
+      const hasFullReport = !!(data.category);
+
       setVideoAnalysis(data);
       setModelStatus({ video: "complete" });
-      setTimeline([
-        { id: 1, text: `Stream: ${data.file_info.resolution} · ${data.file_info.fps.toFixed(1)} fps · ${data.file_info.duration_s.toFixed(1)}s` },
-        { id: 2, text: `Codec: ${data.file_info.codec.toUpperCase()} · ${data.file_info.size_mb.toFixed(1)} MB` },
-        { id: 3, text: data.thumbnail_b64 ? "Thumbnail frame extracted" : "Thumbnail unavailable — ffmpeg/opencv not found" },
-        { id: 4, text: "Metadata analysis complete — video models pending integration" },
-      ]);
 
-      setDisasterCtx({ eventType: "Video Assessment", severity: "Pending", confidence: 0, isVideo: true });
-      setChatHistory([{
-        id:      Date.now(),
-        role:    "assistant",
-        type:    "video-briefing",
-        content: data.analysis.summary,
-        time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      }]);
+      if (hasFullReport) {
+        // Full disaster intelligence report (CLIP + Qwen2-VL + FAISS ran on extracted frames)
+        const report = {
+          category:                  data.category,
+          classification_confidence: data.classification_confidence,
+          severity:                  data.severity,
+          visible_damage:            data.visible_damage,
+          affected_area:             data.affected_area,
+          environmental_impact:      data.environmental_impact,
+          recommendations:           data.recommendations,
+          similar_events:            data.similar_events ?? [],
+          active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
+          processing_time_ms:        data.processing_time_ms,
+        };
+        setUnifiedResult(report);
+        setTimeline([
+          { id: 1, text: `${data.frames_analyzed} frames extracted at 25/50/75/90%` },
+          { id: 2, text: `CLIP majority vote → ${data.category} (${Math.round(data.classification_confidence)}%)` },
+          { id: 3, text: "Qwen2-VL structured assessment complete" },
+          { id: 4, text: `Severity: ${data.severity}` },
+        ]);
+        setDisasterCtx({
+          eventType:     data.category,
+          severity:      data.severity,
+          confidence:    data.classification_confidence,
+          caption:       data.visible_damage,
+          reasoning:     data.environmental_impact,
+          sceneAnalysis: data.recommendations,
+          isVideo:       true,
+        });
+        setChatHistory([{
+          id:      Date.now(),
+          role:    "assistant",
+          type:    "video-briefing",
+          content: `${data.category} — ${data.severity} severity.`,
+          time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        }]);
+      } else {
+        // Metadata-only fallback (models disabled or frame extraction unavailable)
+        const fi = data.file_info ?? {};
+        setTimeline([
+          { id: 1, text: fi.resolution ? `Stream: ${fi.resolution} · ${(fi.fps ?? 0).toFixed(1)} fps · ${(fi.duration_s ?? 0).toFixed(1)}s` : "Stream metadata extracted" },
+          { id: 2, text: fi.codec ? `Codec: ${fi.codec.toUpperCase()} · ${(fi.size_mb ?? 0).toFixed(1)} MB` : "File metadata extracted" },
+          { id: 3, text: data.thumbnail_b64 ? "Thumbnail frame extracted" : "Thumbnail unavailable — ffmpeg/opencv not found" },
+          { id: 4, text: "Metadata analysis complete — video models pending integration" },
+        ]);
+        setDisasterCtx({ eventType: "Video Assessment", severity: "Pending", confidence: 0, isVideo: true });
+        setChatHistory([{
+          id:      Date.now(),
+          role:    "assistant",
+          type:    "video-briefing",
+          content: data.analysis?.summary ?? "Video received. Stream metadata extracted.",
+          time:    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        }]);
+      }
+
       setPhase("ready");
       setTimeout(() => inputRef.current?.focus(), 300);
 
@@ -1316,16 +1489,33 @@ export default function App() {
         const entry = {
           id:              Date.now().toString(),
           timestamp:       new Date().toISOString(),
-          eventType:       "Video Assessment",
-          severity:        "Pending",
-          confidence:      0,
+          eventType:       hasFullReport ? data.category : "Video Assessment",
+          severity:        hasFullReport ? data.severity : "Pending",
+          confidence:      hasFullReport ? data.classification_confidence : 0,
           imageName:       file.name,
           imageThumb:      data.thumbnail_b64 ?? null,
-          briefingSummary: data.analysis.summary.slice(0, 250),
-          briefingFull:    data.analysis.summary,
-          disasterCtx: { eventType: "Video Assessment", confidence: 0, severity: "Pending", caption: "", reasoning: "", sceneAnalysis: "" },
+          briefingSummary: hasFullReport
+            ? (data.visible_damage ?? "").slice(0, 250)
+            : (data.analysis?.summary ?? "").slice(0, 250),
+          briefingFull:    hasFullReport
+            ? `${data.category} — ${data.severity}`
+            : (data.analysis?.summary ?? ""),
+          disasterCtx: hasFullReport
+            ? {
+                eventType:     data.category,
+                confidence:    data.classification_confidence,
+                severity:      data.severity,
+                caption:       data.visible_damage,
+                reasoning:     data.environmental_impact,
+                sceneAnalysis: data.recommendations,
+              }
+            : { eventType: "Video Assessment", confidence: 0, severity: "Pending", caption: "", reasoning: "", sceneAnalysis: "" },
         };
-        const updated = { totalIncidents: prev.totalIncidents + 1, lastVisit: new Date().toISOString(), assessments: [entry, ...prev.assessments].slice(0, MAX_ASSESSMENTS) };
+        const updated = {
+          totalIncidents: prev.totalIncidents + 1,
+          lastVisit:      new Date().toISOString(),
+          assessments:    [entry, ...prev.assessments].slice(0, MAX_ASSESSMENTS),
+        };
         saveMemory(updated);
         return updated;
       });
@@ -2239,7 +2429,7 @@ export default function App() {
 
               /* ── Video briefing message ── */
               if (msg.type === "video-briefing" && videoAnalysis) {
-                return <VideoAssessmentPanel key={msg.id} msg={msg} videoAnalysis={videoAnalysis} />;
+                return <VideoAssessmentPanel key={msg.id} msg={msg} videoAnalysis={videoAnalysis} unifiedResult={unifiedResult} />;
               }
 
               /* ── Briefing message ── */

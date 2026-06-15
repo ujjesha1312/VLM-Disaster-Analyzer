@@ -1,25 +1,30 @@
 """
 video_service.py — Video file processing service.
 
-Handles everything between the HTTP layer and the (future) model layer:
+Handles everything between the HTTP layer and the model layer:
   extract_metadata()   — ffprobe stream info; falls back to cv2 or basic stats
   extract_thumbnail()  — ffmpeg middle-frame JPEG; falls back to cv2
-  build_mock_analysis()— structured placeholder assessment (no model yet)
+  extract_frames()     — 4 JPEG frames at 25/50/75/90% of duration for model inference
+  _vote_best_frame()   — CLIP on each frame; majority vote + confidence-weighted tiebreak
+  process_video()      — full async pipeline (metadata + thumbnail + CLIP + Qwen + FAISS)
+                         falls back to metadata-only if models are unavailable
 
 Design contract:
-  All public functions accept an absolute path string.
-  All public functions return plain dicts or None — never raise on fallback.
+  Sync helpers (extract_metadata, extract_thumbnail, extract_frames) never raise on
+  fallback — they return empty/partial values instead.
+  process_video is async and always returns a valid response dict.
   Routes are responsible for HTTP errors; this layer is responsible for data.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
-import math
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -27,9 +32,19 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+# Bootstrap src/ onto sys.path so model imports resolve from any launch directory.
+_SRC = Path(__file__).resolve().parent.parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
 # Thumbnail target dimensions (keeps aspect ratio)
 THUMB_WIDTH  = 640
 THUMB_HEIGHT = 360
+
+# Temporal positions for inference-frame extraction (fraction of total duration)
+_FRAME_POSITIONS = (0.25, 0.50, 0.75, 0.90)
+# Fixed second offsets used as fallback when video duration is unknown
+_FALLBACK_SEEK_S = (1.0,   3.0,  6.0,  10.0)
 
 
 # ---------------------------------------------------------------------------
@@ -37,9 +52,7 @@ THUMB_HEIGHT = 360
 # ---------------------------------------------------------------------------
 
 def _ffprobe(path: str) -> dict | None:
-    """
-    Run ffprobe and return the parsed JSON or None if ffprobe is unavailable.
-    """
+    """Run ffprobe and return the parsed JSON or None if ffprobe is unavailable."""
     cmd = [
         "ffprobe",
         "-v",            "quiet",
@@ -111,7 +124,6 @@ def extract_metadata(path: str) -> dict:
         h        = int(video_s.get("height", 0))
         codec    = video_s.get("codec_name", "unknown")
 
-        # Derive total frames
         frames = int(video_s.get("nb_frames") or 0)
         if frames == 0 and fps > 0 and duration > 0:
             frames = int(duration * fps)
@@ -158,15 +170,15 @@ def extract_metadata(path: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Thumbnail extraction
+# Thumbnail extraction (display frame only, not used for inference)
 # ---------------------------------------------------------------------------
 
 def extract_thumbnail(path: str, seek_s: float = 1.0) -> str | None:
     """
     Extract a single JPEG frame and return it as a base64 data-URI string.
 
-    Primary: ffmpeg — seek to *seek_s* seconds into the video
-    Fallback: cv2 VideoCapture
+    Primary: ffmpeg — seek to *seek_s* seconds into the video.
+    Fallback: cv2 VideoCapture.
     Returns None if both methods fail.
     """
     # ── Try ffmpeg ─────────────────────────────────────────────────────────────
@@ -219,15 +231,143 @@ def extract_thumbnail(path: str, seek_s: float = 1.0) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Mock analysis
+# Inference frame extraction (4 frames for CLIP + Qwen analysis)
 # ---------------------------------------------------------------------------
 
-def build_mock_analysis(meta: dict, frames_analyzed: int = 8) -> dict:
+def extract_frames(video_path: str, duration_s: float) -> list[str]:
     """
-    Build a placeholder disaster assessment response.
+    Extract 4 JPEG frames at 25/50/75/90% of video duration for model inference.
 
-    This is intentionally honest — it clearly communicates that no model has
-    run yet while still providing useful metadata-derived information.
+    Falls back to fixed second offsets (1, 3, 6, 10 s) when duration is unknown.
+    Returns a list of temp JPEG paths. Caller must unlink them after use.
+    """
+    if duration_s > 0:
+        seek_points = [max(0.5, duration_s * f) for f in _FRAME_POSITIONS]
+    else:
+        seek_points = list(_FALLBACK_SEEK_S)
+
+    paths: list[str] = []
+
+    for seek_s in seek_points:
+        fd, tmp = tempfile.mkstemp(suffix=".jpg")
+        os.close(fd)
+        extracted = False
+
+        # ── ffmpeg ────────────────────────────────────────────────────────────
+        cmd = [
+            "ffmpeg",
+            "-ss",      f"{seek_s:.3f}",
+            "-i",       video_path,
+            "-vframes", "1",
+            "-vf",      "scale=640:480:force_original_aspect_ratio=decrease",
+            "-q:v",     "2",
+            "-y",       tmp,
+        ]
+        try:
+            r = subprocess.run(cmd, capture_output=True, timeout=30)
+            if r.returncode == 0 and Path(tmp).stat().st_size > 100:
+                paths.append(tmp)
+                extracted = True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        except Exception as e:
+            log.debug("ffmpeg frame extract failed at %.1fs: %s", seek_s, e)
+
+        if not extracted:
+            # ── cv2 fallback ─────────────────────────────────────────────────
+            try:
+                import cv2  # type: ignore
+                cap = cv2.VideoCapture(video_path)
+                if cap.isOpened():
+                    fps_cv = cap.get(cv2.CAP_PROP_FPS) or 30.0
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, int(seek_s * fps_cv))
+                    ok, frame = cap.read()
+                    cap.release()
+                    if ok and frame is not None:
+                        cv2.imwrite(tmp, frame)
+                        paths.append(tmp)
+                        extracted = True
+            except ImportError:
+                log.debug("cv2 not available for frame extraction")
+            except Exception as e:
+                log.debug("cv2 frame extract failed at %.1fs: %s", seek_s, e)
+
+        if not extracted:
+            Path(tmp).unlink(missing_ok=True)
+
+    log.info("[Video] Extracted %d/%d inference frames", len(paths), len(seek_points))
+    return paths
+
+
+# ---------------------------------------------------------------------------
+# CLIP majority vote + confidence-weighted tiebreak
+# ---------------------------------------------------------------------------
+
+async def _vote_best_frame(
+    frame_paths: list[str],
+) -> tuple[str, float, str, dict[str, int]]:
+    """
+    Run CLIP on each frame; select the best frame by majority vote.
+
+    Returns:
+        (best_frame_path, best_confidence, winner_category, vote_tally)
+
+    Selection logic:
+      1. Count votes per category across all frames.
+      2. Tiebreak by summed confidence (higher total wins).
+      3. Best frame = highest-confidence frame in the winning category.
+    """
+    from models.clip_model import predict_disaster as clip_predict
+    from backend.services.gpu_queue import run_with_gpu_lock
+
+    frame_results: list[tuple[str, float, str]] = []   # (path, confidence, category)
+
+    for fp in frame_paths:
+        try:
+            clip_raw = await run_with_gpu_lock(
+                asyncio.to_thread(clip_predict, fp),
+                "CLIP",
+            )
+            m    = clip_raw.get("metrics", {})
+            cat  = m.get("disaster_type", "Unknown")
+            conf = float(m.get("confidence_score", 0.0))
+            frame_results.append((fp, conf, cat))
+            log.info("[Video] Frame %d/%d → %s (%.1f%%)",
+                     len(frame_results), len(frame_paths), cat, conf)
+        except Exception as exc:
+            log.warning("[Video] CLIP skipped frame %s: %s", fp, exc)
+
+    if not frame_results:
+        return frame_paths[0], 0.0, "Unknown", {}
+
+    # Tally votes and confidence sums per category
+    vote_count: dict[str, int]   = {}
+    conf_sum:   dict[str, float] = {}
+    for _, conf, cat in frame_results:
+        vote_count[cat] = vote_count.get(cat, 0) + 1
+        conf_sum[cat]   = conf_sum.get(cat, 0.0) + conf
+
+    max_votes = max(vote_count.values())
+    tied      = [c for c, v in vote_count.items() if v == max_votes]
+    winner    = max(tied, key=lambda c: conf_sum[c])
+
+    # Best frame within the winner category = highest individual CLIP confidence
+    winner_frames = [(conf, fp) for fp, conf, cat in frame_results if cat == winner]
+    best_conf, best_path = max(winner_frames, key=lambda x: x[0])
+
+    log.info("[Video] Winner: %s | best conf: %.1f%% | tally: %s",
+             winner, best_conf, vote_count)
+    return best_path, best_conf, winner, vote_count
+
+
+# ---------------------------------------------------------------------------
+# Metadata-only fallback assessment
+# ---------------------------------------------------------------------------
+
+def build_mock_analysis(meta: dict, frames_analyzed: int = 0) -> dict:
+    """
+    Placeholder assessment returned when models are unavailable or frame extraction fails.
+    Self-describing: clearly communicates that no model ran.
     """
     dur  = meta["duration_s"]
     res  = meta["resolution"]
@@ -237,7 +377,6 @@ def build_mock_analysis(meta: dict, frames_analyzed: int = 8) -> dict:
     fmt  = meta["format"]
     tot  = meta["total_frames"]
 
-    # Human-readable duration
     m, s = divmod(int(dur), 60)
     dur_str = f"{m}m {s:02d}s" if m else f"{s}s"
 
@@ -286,23 +425,90 @@ def build_mock_analysis(meta: dict, frames_analyzed: int = 8) -> dict:
 # Unified video processing pipeline
 # ---------------------------------------------------------------------------
 
-def process_video(path: str) -> dict:
+async def process_video(path: str) -> dict:
     """
-    Run the full processing pipeline on a video file.
+    Full video analysis pipeline:
+      1. Extract stream metadata + thumbnail (always).
+      2. Extract 4 inference frames at 25/50/75/90% of duration.
+      3. Run CLIP on each frame; select best by majority vote.
+      4. Run disaster_service.run() (CLIP → Qwen2-VL → FAISS) on the best frame.
+      5. Return merged response: video_metadata + full disaster intelligence report.
 
-    Returns the combined response dict ready to send to the client.
+    Falls back to metadata-only response when:
+      - CLIP or Qwen are disabled in the deployment profile
+      - Frame extraction fails (ffmpeg and cv2 both unavailable)
+      - disaster_service raises an unexpected exception
     """
     t0 = time.perf_counter()
 
     meta      = extract_metadata(path)
     thumb_b64 = extract_thumbnail(path)
-    analysis  = build_mock_analysis(meta)
 
+    # Check deployment profile — full video analysis requires CLIP + Qwen
+    try:
+        from backend.config import ENABLE_CLIP, ENABLE_QWEN
+        models_ready = ENABLE_CLIP and ENABLE_QWEN
+    except Exception:
+        models_ready = False
+
+    frame_paths: list[str] = []
+
+    if models_ready:
+        try:
+            frame_paths = extract_frames(path, meta["duration_s"])
+        except Exception as exc:
+            log.warning("[Video] Frame extraction failed: %s", exc)
+
+    if models_ready and frame_paths:
+        try:
+            best_frame, best_conf, winner_cat, vote_tally = await _vote_best_frame(frame_paths)
+
+            from backend.services.disaster_service import run as disaster_run
+            disaster = await disaster_run(best_frame)
+
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+            log.info("[Video] Full pipeline complete in %.0f ms — %s %s",
+                     elapsed_ms, disaster["category"], disaster["severity"])
+
+            return {
+                # Video stream info
+                "video_metadata":   meta,
+                "thumbnail_b64":    thumb_b64,
+                "frames_analyzed":  len(frame_paths),
+                "best_frame_index": frame_paths.index(best_frame),
+                "frame_votes":      vote_tally,
+                # Disaster intelligence — same field names as /predict/disaster
+                "category":                  disaster["category"],
+                "disaster_type":             disaster["category"],
+                "classification_confidence": disaster["classification_confidence"],
+                "severity":                  disaster["severity"],
+                "visible_damage":            disaster["visible_damage"],
+                "affected_area":             disaster["affected_area"],
+                "environmental_impact":      disaster["environmental_impact"],
+                "recommendations":           disaster["recommendations"],
+                "similar_events":            disaster["similar_events"],
+                "active_models":             disaster["active_models"],
+                "processing_time_ms":        elapsed_ms,
+            }
+
+        except Exception as exc:
+            log.exception("[Video] Full pipeline failed, falling back to metadata: %s", exc)
+        finally:
+            for fp in frame_paths:
+                Path(fp).unlink(missing_ok=True)
+
+    # ── Metadata-only fallback ────────────────────────────────────────────────
+    # Reached when: models disabled, frame extraction returned 0 frames, or pipeline error.
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+    analysis   = build_mock_analysis(meta, frames_analyzed=len(frame_paths))
+
+    # Clean up any frames extracted before the failure path
+    for fp in frame_paths:
+        Path(fp).unlink(missing_ok=True)
 
     return {
-        "file_info":         meta,
-        "thumbnail_b64":     thumb_b64,
-        "analysis":          analysis,
+        "file_info":          meta,
+        "thumbnail_b64":      thumb_b64,
+        "analysis":           analysis,
         "processing_time_ms": elapsed_ms,
     }
