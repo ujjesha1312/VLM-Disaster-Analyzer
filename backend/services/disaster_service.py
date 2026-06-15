@@ -158,6 +158,21 @@ async def run(image_path: str) -> dict:
     severity    = fields.get("severity") or qwen_raw.get("metrics", {}).get("severity", "Unknown")
     final_type  = fields.get("disaster_type") or category
 
+    # ── Stage 3: Historical retrieval (best-effort, skipped when disabled) ──────
+    similar_events: list[dict] = []
+    from backend.config import ENABLE_RETRIEVAL
+    if ENABLE_RETRIEVAL:
+        try:
+            from retrieval.search import find_similar_events
+            similar_events = await asyncio.to_thread(
+                find_similar_events,
+                image_path,
+                5,                       # top_k
+                final_type.lower(),      # filter to same disaster category
+            )
+        except Exception as _retrieval_err:
+            log.debug("[Retrieval] Skipped: %s", _retrieval_err)
+
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
     log.info(f"Unified analysis complete in {elapsed_ms} ms — {final_type}, {severity}")
 
@@ -169,6 +184,7 @@ async def run(image_path: str) -> dict:
         "affected_area":             fields.get("affected_area", ""),
         "environmental_impact":      fields.get("environmental_impact", ""),
         "recommendations":           fields.get("recommendations", ""),
+        "similar_events":            similar_events,
         "active_models":             ["CLIP", "Qwen2-VL"],
         "processing_time_ms":        elapsed_ms,
         "clip_raw":                  clip_raw,

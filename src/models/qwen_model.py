@@ -83,7 +83,8 @@ def _load_model():
             if _model is None:
                 _processor = AutoProcessor.from_pretrained(
                     MODEL_PATH,
-                    trust_remote_code=True
+                    trust_remote_code=True,
+                    local_files_only=True,
                 )
 
                 bnb_config = _get_bnb_config()
@@ -94,14 +95,16 @@ def _load_model():
                         quantization_config=bnb_config,
                         device_map={"": 0},
                         trust_remote_code=True,
+                        local_files_only=True,
                     )
                 else:
+                    # On CPU: no device_map — accelerate's "auto" shards tensors
+                    # incorrectly when there is no GPU, causing shape mismatches.
                     _model = Qwen2VLForConditionalGeneration.from_pretrained(
                         MODEL_PATH,
                         torch_dtype=dtype,
-                        low_cpu_mem_usage=True,
-                        device_map="auto",
                         trust_remote_code=True,
+                        local_files_only=True,
                     )
 
                 _model.eval()

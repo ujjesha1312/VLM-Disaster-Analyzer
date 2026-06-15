@@ -1,9 +1,13 @@
+import logging
+
 from transformers import Blip2Processor, Blip2ForConditionalGeneration
 from pathlib import Path
 from PIL import Image
 import sys
 import threading
 import torch
+
+logger = logging.getLogger(__name__)
 
 # Make src/ importable when this file is run standalone.
 _SRC = Path(__file__).resolve().parent.parent
@@ -202,9 +206,8 @@ def predict_caption(image_path):
     # Debug logging
     # ---------------------------------------------------------------
 
-    print("\nBLIP-2 Caption:")
-    print(caption)
-    print(f"Confidence: {confidence_score}%")
+    logger.debug("BLIP-2 Caption: %s", caption)
+    logger.debug("Confidence: %s%%", confidence_score)
 
 
     # ---------------------------------------------------------------
@@ -227,14 +230,14 @@ def predict_caption(image_path):
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
-
+    logging.basicConfig(level=logging.DEBUG)
     image_path = "test.jpg"
 
     result = predict_caption(image_path)
 
-    print("\nCaption Result")
-    print("-------------------------")
-    print(f"Model       : {result['model']}")
-    print(f"Description : {result['metrics']['scene_description']}")
-    print(f"Keywords    : {result['metrics']['keywords']}")
-    print(f"Confidence  : {result['metrics']['confidence_score']}%")
+    logger.info("Caption Result")
+    logger.info("-------------------------")
+    logger.info("Model       : %s", result["model"])
+    logger.info("Description : %s", result["metrics"]["scene_description"])
+    logger.info("Keywords    : %s", result["metrics"]["keywords"])
+    logger.info("Confidence  : %s%%", result["metrics"]["confidence_score"])

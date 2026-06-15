@@ -796,6 +796,9 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
           />
         </div>
 
+        {/* ── Similar historical events (populated when FAISS index is built) ── */}
+        <SimilarEventsCard events={d.similar_events} />
+
         {/* ── Suggested queries (only when conversation is fresh) ── */}
         {chatLength <= 2 && disasterCtx && (
           <div className="pt-1 space-y-2">
@@ -817,6 +820,91 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
         )}
       </div>
     </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SimilarEventsCard — rendered inside UnifiedReportPanel when retrieval data exists
+// ---------------------------------------------------------------------------
+
+function SimilarEventsCard({ events }) {
+  if (!events || events.length === 0) return null;
+
+  const barColor = (sim) => {
+    if (sim >= 80) return "bg-emerald-400";
+    if (sim >= 65) return "bg-[#F0BB78]";
+    return "bg-[#FFF0DC]/50";
+  };
+
+  const simLabel = (sim) => {
+    if (sim >= 80) return "text-emerald-400";
+    if (sim >= 65) return "text-[#F0BB78]";
+    return "text-[#FFF0DC]/60";
+  };
+
+  return (
+    <div className="rounded-xl border border-[#FFF0DC]/15 bg-white/[0.03] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span
+          className="material-symbols-outlined text-[#F0BB78]"
+          style={{ fontSize: "17px", fontVariationSettings: "'FILL' 1" }}
+        >
+          history
+        </span>
+        <p className="text-[10px] text-[#FFF0DC]/55 uppercase tracking-widest font-semibold">
+          Similar Historical Events
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {events.map((ev, i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.04] border border-[#FFF0DC]/10 hover:border-[#FFF0DC]/25 transition-colors"
+          >
+            {/* Rank badge */}
+            <span className="shrink-0 w-5 h-5 rounded-full bg-[#F0BB78]/15 border border-[#F0BB78]/30 flex items-center justify-center text-[#F0BB78] text-[9px] font-bold mt-0.5">
+              {i + 1}
+            </span>
+
+            {/* Event info */}
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-[#FFF0DC] text-sm font-semibold leading-tight">
+                  {ev.event}
+                </span>
+                <span className="text-[#FFF0DC]/40 text-xs">{ev.year}</span>
+              </div>
+              <p className="text-[#FFF0DC]/50 text-[11px] leading-snug">
+                {ev.location}
+              </p>
+              {ev.description && (
+                <p className="text-[#FFF0DC]/35 text-[10px] leading-snug line-clamp-2">
+                  {ev.description}
+                </p>
+              )}
+
+              {/* Similarity bar */}
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${barColor(ev.similarity)}`}
+                    style={{ width: `${Math.min(ev.similarity, 100)}%` }}
+                  />
+                </div>
+                <span className={`text-[10px] font-bold tabular-nums shrink-0 ${simLabel(ev.similarity)}`}>
+                  {ev.similarity.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[9px] text-[#FFF0DC]/25 pt-1">
+        Similarity computed via CLIP cosine distance against {events.length} indexed events.
+      </p>
+    </div>
   );
 }
 

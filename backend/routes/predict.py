@@ -4,6 +4,7 @@ predict.py — FastAPI router for VLM inference endpoints
 
 import asyncio
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import List
@@ -13,11 +14,27 @@ from fastapi.responses import JSONResponse
 
 from backend.config import is_active, DISABLED_RESPONSE
 from backend.services.clip_service   import run as clip_run
-from backend.services.blip2_service  import run as blip2_run
-from backend.services.llava_service  import run as llava_run
 from backend.services.qwen_service   import run as qwen_run
 from backend.services.gpt4v_service  import run as gpt4v_run
 from backend.services.gpu_queue      import run_with_gpu_lock
+
+log = logging.getLogger(__name__)
+
+# Research-only models — isolated imports so a load failure never crashes
+# the production CLIP + Qwen pipeline.
+try:
+    from backend.services.blip2_service import run as blip2_run
+except Exception as _blip2_err:
+    log.warning("[predict] BLIP-2 service unavailable at startup: %s", _blip2_err)
+    def blip2_run(_path: str) -> dict:  # type: ignore[misc]
+        return {"model": "BLIP-2", "status": "unavailable", "error": str(_blip2_err)}
+
+try:
+    from backend.services.llava_service import run as llava_run
+except Exception as _llava_err:
+    log.warning("[predict] LLaVA service unavailable at startup: %s", _llava_err)
+    def llava_run(_path: str) -> dict:  # type: ignore[misc]
+        return {"model": "LLaVA", "status": "unavailable", "error": str(_llava_err)}
 
 router = APIRouter()
 
@@ -187,10 +204,7 @@ async def predict_sequential(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid image: {exc}")
     except Exception as exc:
-        import logging, traceback
-        logging.getLogger(__name__).error(
-            "Sequential inference error: %s\n%s", exc, traceback.format_exc()
-        )
+        log.error("Sequential inference error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Inference error: {exc}")
     finally:
         if tmp_path is not None:
@@ -296,11 +310,7 @@ async def predict(
         )
 
     except Exception as exc:
-        import logging, traceback
-        logging.getLogger(__name__).error(
-            "Unhandled inference error for model '%s': %s\n%s",
-            model_name, exc, traceback.format_exc(),
-        )
+        log.error("Unhandled inference error for model '%s': %s", model_name, exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Inference error: {exc}")
 
     finally:

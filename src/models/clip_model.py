@@ -211,6 +211,36 @@ def predict_disaster(image_path):
 
 
 # -------------------------------------------------------------------
+# Image Embedding (used by retrieval module)
+# -------------------------------------------------------------------
+
+def embed_image(image_path) -> "np.ndarray":
+    """
+    Return a unit-norm CLIP image embedding (512-d float32 numpy array).
+
+    Reuses the same model singleton as predict_disaster — no second load.
+    Vectors are L2-normalised so dot-product == cosine similarity.
+    """
+    import numpy as np
+
+    model, processor = _load_model()
+
+    try:
+        image = Image.open(image_path).convert("RGB")
+    except Exception as exc:
+        raise ValueError(f"Invalid image file: {exc}")
+
+    inputs = processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        features = model.get_image_features(pixel_values=inputs["pixel_values"])
+
+    features = features / features.norm(dim=-1, keepdim=True)
+    return features[0].cpu().numpy().astype("float32")
+
+
+# -------------------------------------------------------------------
 # Standalone Test
 # -------------------------------------------------------------------
 

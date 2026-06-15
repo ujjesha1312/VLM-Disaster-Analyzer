@@ -21,6 +21,7 @@ from backend.routes.predict          import router as predict_router
 from backend.routes.chat             import router as chat_router
 from backend.routes.predict_video    import router as video_router
 from backend.routes.predict_disaster import router as disaster_router
+from backend.routes.retrieval        import router as retrieval_router
 
 # Load .env at startup so OPENAI_API_KEY and LOG_LEVEL are available immediately.
 load_dotenv()
@@ -87,10 +88,11 @@ app.add_middleware(
 #   1. disaster_router  (/predict/disaster)     before predict_router (/predict/{model_name})
 #   2. video_router     (/predict/video/*)      before predict_router (/predict/{model_name})
 # Both ensure specific paths are not swallowed by the wildcard route.
-app.include_router(disaster_router,  tags=["Unified Inference"])
-app.include_router(video_router,     tags=["Video VLM Inference"])
-app.include_router(predict_router,   tags=["VLM Inference"])
-app.include_router(chat_router,      tags=["Intelligence Chat"])
+app.include_router(disaster_router,   tags=["Unified Inference"])
+app.include_router(retrieval_router,  tags=["Historical Retrieval"])
+app.include_router(video_router,      tags=["Video VLM Inference"])
+app.include_router(predict_router,    tags=["VLM Inference"])
+app.include_router(chat_router,       tags=["Intelligence Chat"])
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,13 @@
+import logging
+
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 from pathlib import Path
 from PIL import Image
 import sys
 import threading
 import torch
+
+logger = logging.getLogger(__name__)
 
 # Make src/ importable when this file is run standalone.
 _SRC = Path(__file__).resolve().parent.parent
@@ -218,9 +222,8 @@ def predict_response(image_path):
     # Debug logging
     # ---------------------------------------------------------------
 
-    print("\nLLaVA Response:")
-    print(response)
-    print(f"Confidence: {confidence_score}%")
+    logger.debug("LLaVA Response:\n%s", response)
+    logger.debug("Confidence: %s%%", confidence_score)
 
 
     # ---------------------------------------------------------------
@@ -245,14 +248,14 @@ def predict_response(image_path):
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
-
+    logging.basicConfig(level=logging.DEBUG)
     image_path = "test.jpg"
 
     result = predict_response(image_path)
 
-    print("\nReasoning Result")
-    print("-------------------------")
-    print(f"Model         : {result['model']}")
-    print(f"Disaster Type : {result['metrics']['disaster_type']}")
-    print(f"Severity      : {result['metrics']['severity']}")
-    print(f"Confidence    : {result['metrics']['confidence_score']}%")
+    logger.info("Reasoning Result")
+    logger.info("-------------------------")
+    logger.info("Model         : %s", result["model"])
+    logger.info("Disaster Type : %s", result["metrics"]["disaster_type"])
+    logger.info("Severity      : %s", result["metrics"]["severity"])
+    logger.info("Confidence    : %s%%", result["metrics"]["confidence_score"])
