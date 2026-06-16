@@ -267,6 +267,112 @@ async def predict_video_qwen(
 
 
 # ---------------------------------------------------------------------------
+# Runtime diagnostics endpoint
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/diagnostics",
+    summary="Runtime inspection — which process_video() is loaded, tool availability, config flags",
+)
+async def video_diagnostics():
+    """
+    Performs a live runtime inspection of the video pipeline without
+    uploading a video.  Call GET /predict/video/diagnostics and share
+    the JSON to debug why the pipeline is falling back to metadata-only.
+
+    Checks:
+      - Which file process_video() was loaded from (inspect.getfile)
+      - Whether it is async (iscoroutinefunction)
+      - First 50 source lines of the live implementation
+      - ENABLE_CLIP / ENABLE_QWEN config flags
+      - ffmpeg availability and version
+      - cv2 availability
+      - Whether extract_frames / _vote_best_frame are importable
+      - Whether disaster_service.run is importable
+    """
+    import asyncio
+    import inspect
+    import subprocess
+    import sys
+
+    out: dict = {"python_executable": sys.executable, "sys_path_0": sys.path[0]}
+
+    # ── 1. process_video inspection ──────────────────────────────────────────
+    try:
+        from backend.services.video_service import process_video
+        out["process_video_file"]           = inspect.getfile(process_video)
+        out["process_video_is_coroutine"]   = asyncio.iscoroutinefunction(process_video)
+        source_lines, start_lineno          = inspect.getsourcelines(process_video)
+        out["process_video_start_lineno"]   = start_lineno
+        out["process_video_first_50_lines"] = "".join(source_lines[:50])
+    except Exception as e:
+        out["process_video_error"] = str(e)
+
+    # ── 2. Deployment config flags ───────────────────────────────────────────
+    try:
+        from backend.config import ENABLE_CLIP, ENABLE_QWEN, ENABLE_RETRIEVAL, ACTIVE_MODELS
+        out["ENABLE_CLIP"]       = ENABLE_CLIP
+        out["ENABLE_QWEN"]       = ENABLE_QWEN
+        out["ENABLE_RETRIEVAL"]  = ENABLE_RETRIEVAL
+        out["ACTIVE_MODELS"]     = sorted(ACTIVE_MODELS)
+        out["models_ready"]      = ENABLE_CLIP and ENABLE_QWEN
+    except Exception as e:
+        out["config_error"] = str(e)
+
+    # ── 3. ffmpeg availability ────────────────────────────────────────────────
+    try:
+        r = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        out["ffmpeg_available"] = r.returncode == 0
+        out["ffmpeg_first_line"] = (r.stdout or r.stderr).decode(errors="replace").split("\n")[0]
+    except FileNotFoundError:
+        out["ffmpeg_available"]  = False
+        out["ffmpeg_error"]      = "not found in PATH"
+    except Exception as e:
+        out["ffmpeg_error"] = str(e)
+
+    # ── 4. cv2 availability ───────────────────────────────────────────────────
+    try:
+        import cv2  # type: ignore
+        out["cv2_available"] = True
+        out["cv2_version"]   = cv2.__version__
+    except ImportError:
+        out["cv2_available"] = False
+
+    # ── 5. video_service symbol presence ─────────────────────────────────────
+    try:
+        from backend.services import video_service as _vs
+        out["video_service_file"]              = inspect.getfile(_vs)
+        out["extract_frames_present"]          = hasattr(_vs, "extract_frames")
+        out["_vote_best_frame_present"]        = hasattr(_vs, "_vote_best_frame")
+        out["_vote_best_frame_is_coroutine"]   = asyncio.iscoroutinefunction(
+            getattr(_vs, "_vote_best_frame", None)
+        )
+        out["build_mock_analysis_present"]     = hasattr(_vs, "build_mock_analysis")
+        out["_FRAME_POSITIONS"]                = getattr(_vs, "_FRAME_POSITIONS", "MISSING")
+    except Exception as e:
+        out["video_service_inspect_error"] = str(e)
+
+    # ── 6. disaster_service importability ────────────────────────────────────
+    try:
+        from backend.services.disaster_service import run as disaster_run
+        out["disaster_service_importable"]   = True
+        out["disaster_service_is_coroutine"] = asyncio.iscoroutinefunction(disaster_run)
+        out["disaster_service_file"]         = inspect.getfile(disaster_run)
+    except Exception as e:
+        out["disaster_service_error"] = str(e)
+
+    # ── 7. CLIP model cache status ────────────────────────────────────────────
+    try:
+        import importlib
+        clip_mod = importlib.import_module("models.clip_model")
+        out["clip_model_loaded"] = clip_mod._model is not None
+    except Exception as e:
+        out["clip_model_error"] = str(e)
+
+    return JSONResponse(out)
+
+
+# ---------------------------------------------------------------------------
 # Model inventory endpoint
 # ---------------------------------------------------------------------------
 

@@ -4,22 +4,22 @@
 
 /* ── Atmosphere CSS variable defaults ─────────────────────────────────────── */
 :root {
-  --atm-bg:       #131010;
-  --atm-surface:  #543A14;
-  --atm-surface2: #0D0B0B;
-  --atm-bubble:   rgba(255,240,220,0.07);
-  --atm-chip:     #543A14;
-  --atm-primary:  #F0BB78;
-  --atm-accent:   #FFF0DC;
-  --atm-muted:    rgba(255,240,220,0.50);
-  --atm-glow-1:   rgba(240, 187, 120, 0.12);
-  --atm-glow-2:   rgba(19,  16,  16, 0.06);
+  --atm-bg:       #F3F4F4;
+  --atm-surface:  #FFFFFF;
+  --atm-surface2: #ECEDEF;
+  --atm-bubble:   rgba(133,57,83,0.06);
+  --atm-chip:     rgba(133,57,83,0.10);
+  --atm-primary:  #853953;
+  --atm-accent:   #612D53;
+  --atm-muted:    rgba(44,44,44,0.45);
+  --atm-glow-1:   rgba(133,57,83,0.06);
+  --atm-glow-2:   rgba(97,45,83,0.04);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
 body {
   background-color: var(--atm-bg);
-  color: #FFF0DC;
+  color: #2C2C2C;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -35,20 +35,20 @@ body {
 
 /* ── Upload dashed border ──────────────────────────────────────────────────── */
 .upload-dashed {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23F0BB78' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23853953' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed:hover {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23FFF0DC' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%232C2C2C' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed-active {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23FFF0DC' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%232C2C2C' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 
 /* ── Chat scrollbar ────────────────────────────────────────────────────────── */
 .chat-container::-webkit-scrollbar       { width: 4px; }
 .chat-container::-webkit-scrollbar-track { background: transparent; }
 .chat-container::-webkit-scrollbar-thumb {
-  background: rgba(240,187,120,0.35);
+  background: rgba(133,57,83,0.25);
   border-radius: 10px;
 }
 
@@ -106,7 +106,7 @@ h1, h2, h3, .font-headline {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #F0BB78;
+  background-color: #853953;
   animation: typing-bounce 1.2s ease-in-out infinite;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -181,7 +181,7 @@ h1, h2, h3, .font-headline {
 .splash-screen {
   position: fixed;
   inset: 0;
-  background: #131010;
+  background: #F3F4F4;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,8 +214,8 @@ h1, h2, h3, .font-headline {
   height: 420px;
   background: radial-gradient(
     ellipse at center,
-    rgba(240, 187, 120, 0.14) 0%,
-    rgba(240, 187, 120, 0.05) 40%,
+    rgba(133, 57, 83, 0.10) 0%,
+    rgba(133, 57, 83, 0.04) 40%,
     transparent 70%
   );
   border-radius: 50%;
@@ -253,31 +253,31 @@ h1, h2, h3, .font-headline {
   position: absolute;
   inset: -14px;
   border-radius: 28px;
-  box-shadow: 0 0 0 0 rgba(240, 187, 120, 0.40);
+  box-shadow: 0 0 0 0 rgba(133, 57, 83, 0.25);
   animation: splash-ring-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) 0.5s infinite;
 }
 
 @keyframes splash-ring-pulse {
-  0%  { box-shadow: 0 0 0  0px rgba(240, 187, 120, 0.40); }
-  70% { box-shadow: 0 0 0 22px rgba(240, 187, 120, 0.00); }
-  100%{ box-shadow: 0 0 0 22px rgba(240, 187, 120, 0.00); }
+  0%  { box-shadow: 0 0 0  0px rgba(133, 57, 83, 0.25); }
+  70% { box-shadow: 0 0 0 22px rgba(133, 57, 83, 0.00); }
+  100%{ box-shadow: 0 0 0 22px rgba(133, 57, 83, 0.00); }
 }
 
 /* Icon box */
 .splash-icon {
   width: 92px;
   height: 92px;
-  background: #543A14;
+  background: #FFFFFF;
   border-radius: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 240, 220, 0.18);
+  border: 1px solid rgba(44, 44, 44, 0.10);
   box-shadow:
-    0 0 0   1px rgba(240, 187, 120, 0.12),
-    0 0  50px    rgba(240, 187, 120, 0.18),
-    0 24px 60px  rgba(19,  16,  16,  0.70),
-    inset 0 1px 0 rgba(255, 240, 220, 0.12);
+    0 0 0   1px rgba(133, 57, 83, 0.08),
+    0 0  50px    rgba(133, 57, 83, 0.12),
+    0 24px 60px  rgba(44,  44,  44,  0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.80);
   animation: splash-icon-enter 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
 }
 
@@ -288,7 +288,7 @@ h1, h2, h3, .font-headline {
 
 .splash-icon .material-symbols-outlined {
   font-size: 44px;
-  color: #FFF0DC;
+  color: #853953;
   font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 48;
 }
 
@@ -302,7 +302,7 @@ h1, h2, h3, .font-headline {
 
 /* Main title */
 .splash-title {
-  color: #FFF0DC;
+  color: #2C2C2C;
   font-family: 'Hanken Grotesk', sans-serif;
   font-size: 21px;
   font-weight: 600;
@@ -313,7 +313,7 @@ h1, h2, h3, .font-headline {
 
 /* Subtitle with blinking cursor */
 .splash-subtitle {
-  color: rgba(255, 240, 220, 0.55);
+  color: rgba(44, 44, 44, 0.55);
   font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 400;
@@ -325,7 +325,7 @@ h1, h2, h3, .font-headline {
 /* Blinking terminal cursor after the subtitle */
 .splash-subtitle::after {
   content: '_';
-  color: rgba(240, 187, 120, 0.75);
+  color: rgba(133, 57, 83, 0.70);
   animation: splash-cursor-blink 0.85s step-start 1.6s infinite;
 }
 

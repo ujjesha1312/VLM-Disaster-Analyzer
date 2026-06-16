@@ -439,36 +439,59 @@ async def process_video(path: str) -> dict:
       - Frame extraction fails (ffmpeg and cv2 both unavailable)
       - disaster_service raises an unexpected exception
     """
+    import inspect
     t0 = time.perf_counter()
+
+    # TRACE: confirm which file this function body was loaded from
+    log.warning("[Video:TRACE] process_video() called — loaded from: %s", inspect.getfile(process_video))
 
     meta      = extract_metadata(path)
     thumb_b64 = extract_thumbnail(path)
+
+    log.warning("[Video:TRACE] metadata extracted — duration_s=%.2f, source=%s",
+                meta["duration_s"], meta["source"])
 
     # Check deployment profile — full video analysis requires CLIP + Qwen
     try:
         from backend.config import ENABLE_CLIP, ENABLE_QWEN
         models_ready = ENABLE_CLIP and ENABLE_QWEN
-    except Exception:
+        log.warning("[Video:TRACE] config — ENABLE_CLIP=%s, ENABLE_QWEN=%s, models_ready=%s",
+                    ENABLE_CLIP, ENABLE_QWEN, models_ready)
+    except Exception as cfg_exc:
         models_ready = False
+        log.warning("[Video:TRACE] config import FAILED: %s — models_ready=False", cfg_exc)
 
     frame_paths: list[str] = []
 
     if models_ready:
         try:
             frame_paths = extract_frames(path, meta["duration_s"])
+            log.warning("[Video:TRACE] extract_frames returned %d paths: %s",
+                        len(frame_paths), frame_paths)
         except Exception as exc:
-            log.warning("[Video] Frame extraction failed: %s", exc)
+            log.warning("[Video:TRACE] extract_frames EXCEPTION: %s", exc)
+    else:
+        log.warning("[Video:TRACE] SKIP extract_frames — models_ready=False")
+
+    if not models_ready:
+        log.warning("[Video:TRACE] FALLBACK REASON: models_ready=False")
+    elif not frame_paths:
+        log.warning("[Video:TRACE] FALLBACK REASON: extract_frames returned 0 frames")
 
     if models_ready and frame_paths:
         try:
+            log.warning("[Video:TRACE] calling _vote_best_frame with %d frames", len(frame_paths))
             best_frame, best_conf, winner_cat, vote_tally = await _vote_best_frame(frame_paths)
+            log.warning("[Video:TRACE] _vote_best_frame done — winner=%s conf=%.1f best_frame=%s",
+                        winner_cat, best_conf, best_frame)
 
+            log.warning("[Video:TRACE] calling disaster_service.run on best frame")
             from backend.services.disaster_service import run as disaster_run
             disaster = await disaster_run(best_frame)
 
             elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
-            log.info("[Video] Full pipeline complete in %.0f ms — %s %s",
-                     elapsed_ms, disaster["category"], disaster["severity"])
+            log.warning("[Video:TRACE] FULL PIPELINE SUCCEEDED — %s %s in %.0f ms",
+                        disaster["category"], disaster["severity"], elapsed_ms)
 
             return {
                 # Video stream info
@@ -492,17 +515,16 @@ async def process_video(path: str) -> dict:
             }
 
         except Exception as exc:
-            log.exception("[Video] Full pipeline failed, falling back to metadata: %s", exc)
+            log.exception("[Video:TRACE] PIPELINE EXCEPTION (falling back to metadata): %s", exc)
         finally:
             for fp in frame_paths:
                 Path(fp).unlink(missing_ok=True)
 
     # ── Metadata-only fallback ────────────────────────────────────────────────
-    # Reached when: models disabled, frame extraction returned 0 frames, or pipeline error.
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+    log.warning("[Video:TRACE] RETURNING METADATA-ONLY RESPONSE (fallback)")
     analysis   = build_mock_analysis(meta, frames_analyzed=len(frame_paths))
 
-    # Clean up any frames extracted before the failure path
     for fp in frame_paths:
         Path(fp).unlink(missing_ok=True)
 
