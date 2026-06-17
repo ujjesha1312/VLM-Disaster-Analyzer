@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   IntroAnimation — cinematic 5-phase intro
+   IntroAnimation — cinematic 4-phase intro (Intelligence Blue)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Root ───────────────────────────────────────────────────────────────── */
@@ -7,17 +7,19 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: radial-gradient(ellipse at 40% 45%, rgba(133,57,83,0.06) 0%, #000000 55%, #000000 100%);
+  background: radial-gradient(ellipse at 40% 45%, rgba(143,171,212,0.06) 0%, #000000 55%, #000000 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   opacity: 1;
-  transition: opacity 0.6s ease;
+  transition: opacity 1.0s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
 .intro-root.intro-exiting {
   opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 1.0s cubic-bezier(0.4, 0, 0.6, 1), transform 1.0s cubic-bezier(0.4, 0, 0.6, 1);
   pointer-events: none;
 }
 
@@ -28,7 +30,7 @@
   display: block;
 }
 
-/* ── Phase 2: stream glow pulse ──────────────────────────────────────────── */
+/* ── Phase 1: stream glow pulse ──────────────────────────────────────────── */
 .ia-stream-pulse {
   animation: ia-glow-pulse 0.85s ease-in-out infinite alternate;
 }
@@ -38,8 +40,8 @@
   to   { filter: brightness(1.9) saturate(1.5); }
 }
 
-/* ── Phase 3: Collision ──────────────────────────────────────────────────── */
-.ia-collision {
+/* ── Phase 2: Convergence container ─────────────────────────────────────── */
+.ia-convergence {
   position: absolute;
   inset: 0;
   display: flex;
@@ -48,93 +50,118 @@
   pointer-events: none;
 }
 
-/* Shockwave expanding ring */
-.ia-shockwave {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  width: 0;
-  height: 0;
-  animation: ia-shockwave-expand 1.4s cubic-bezier(0.2, 0, 0.8, 1) forwards;
-}
-
-.ia-shockwave-2 {
-  animation-delay: 0.28s;
-  border-color: rgba(150, 210, 255, 0.45);
-  animation-duration: 1.6s;
-}
-
-@keyframes ia-shockwave-expand {
-  0%   { width: 0;     height: 0;     opacity: 1;   margin: 0;       }
-  100% { width: 520px; height: 520px; opacity: 0;   margin: -260px;  }
-}
-
-/* Central energy burst */
+/* ── Energy core — persistent pulsing orb ────────────────────────────────── */
 .ia-energy-core {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255,255,255,0.95) 0%,
-    rgba(77,166,255,0.55) 35%,
-    transparent 70%
+    rgba(239,236,227,0.90) 0%,
+    rgba(143,171,212,0.70) 30%,
+    rgba(74,112,169,0.40) 60%,
+    transparent 80%
   );
-  animation: ia-core-burst 0.7s ease-out forwards;
+  animation: ia-core-pulse 2.8s ease-in-out infinite alternate;
 }
 
-@keyframes ia-core-burst {
-  0%   { transform: scale(0);   opacity: 1; }
-  55%  { transform: scale(1.6); opacity: 0.85; }
-  100% { transform: scale(2.2); opacity: 0; }
-}
-
-/* Tagline text */
-.ia-collision-text {
+.ia-energy-core-logo {
+  width: 52px;
+  height: 52px;
   position: absolute;
-  top: calc(50% + 72px);
+  animation: ia-core-pulse 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes ia-core-pulse {
+  from {
+    transform: scale(0.88);
+    box-shadow: 0 0 18px rgba(143,171,212,0.50), 0 0 40px rgba(74,112,169,0.25);
+  }
+  to {
+    transform: scale(1.12);
+    box-shadow: 0 0 32px rgba(143,171,212,0.80), 0 0 70px rgba(74,112,169,0.45);
+  }
+}
+
+/* ── Radar / pulse rings ──────────────────────────────────────────────────── */
+.ia-radar-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(143,171,212,0.60);
+  width: 24px;
+  height: 24px;
+  margin: -12px;
+  animation: ia-radar-expand 3.6s ease-out infinite;
+}
+
+.ia-radar-ring-2 {
+  animation-delay: 1.2s;
+  border-color: rgba(74,112,169,0.40);
+}
+
+.ia-radar-ring-3 {
+  animation-delay: 2.4s;
+  border-color: rgba(143,171,212,0.30);
+}
+
+.ia-radar-ring-logo {
+  animation-duration: 4s;
+  border-color: rgba(143,171,212,0.50);
+}
+
+.ia-radar-ring-logo-2 {
+  animation-delay: 2s;
+  animation-duration: 4s;
+  border-color: rgba(74,112,169,0.35);
+}
+
+@keyframes ia-radar-expand {
+  0%   { width: 24px;  height: 24px;  margin: -12px;  opacity: 0.9; }
+  100% { width: 340px; height: 340px; margin: -170px; opacity: 0;   }
+}
+
+/* ── Tagline ──────────────────────────────────────────────────────────────── */
+.ia-tagline {
+  position: absolute;
+  top: calc(50% + 78px);
   left: 50%;
   transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(239,236,227,0.75);
   font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   white-space: nowrap;
-  animation: ia-text-in 0.55s cubic-bezier(0.16,1,0.3,1) 0.15s both;
-  transition: opacity 0.4s ease;
-}
-
-.ia-collision-text.ia-text-out {
-  opacity: 0;
+  text-transform: uppercase;
+  animation: ia-text-in 0.8s cubic-bezier(0.16,1,0.3,1) 0.4s both;
 }
 
 @keyframes ia-text-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
 }
 
-/* ── Phase 4: Logo ───────────────────────────────────────────────────────── */
+/* ── Phase 3: Logo ───────────────────────────────────────────────────────── */
 .ia-logo {
   position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  animation: ia-logo-enter 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  gap: 20px;
+  animation: ia-logo-enter 1.0s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes ia-logo-enter {
-  from { opacity: 0; transform: scale(0.82) translateY(14px); }
+  from { opacity: 0; transform: scale(0.86) translateY(16px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);    }
 }
 
 /* Emblem wrapper */
 .ia-emblem {
   position: relative;
-  width: 88px;
-  height: 88px;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,17 +176,17 @@
 }
 
 .ia-orbit-1 {
-  width: 68px;
-  height: 68px;
-  border-color: rgba(77, 166, 255, 0.45);
-  animation-duration: 4s;
+  width: 76px;
+  height: 76px;
+  border-color: rgba(143,171,212,0.50);
+  animation-duration: 5s;
 }
 
 .ia-orbit-2 {
-  width: 88px;
-  height: 88px;
-  border-color: rgba(255, 90, 54, 0.3);
-  animation-duration: 7s;
+  width: 100px;
+  height: 100px;
+  border-color: rgba(74,112,169,0.30);
+  animation-duration: 9s;
   animation-direction: reverse;
 }
 
@@ -170,32 +197,34 @@
 
 /* Central icon */
 .ia-logo-icon {
-  color: #ffffff;
+  color: #EFECE3;
   font-size: 38px;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.55));
-  animation: ia-icon-pulse 2.5s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 12px rgba(143,171,212,0.70));
+  animation: ia-icon-pulse 2.8s ease-in-out infinite alternate;
+  position: relative;
+  z-index: 2;
 }
 
 @keyframes ia-icon-pulse {
-  from { filter: drop-shadow(0 0 8px  rgba(255,255,255,0.4)); }
-  to   { filter: drop-shadow(0 0 22px rgba(255,255,255,0.9)); }
+  from { filter: drop-shadow(0 0 8px  rgba(143,171,212,0.50)); }
+  to   { filter: drop-shadow(0 0 24px rgba(143,171,212,1.00)); }
 }
 
 /* Title */
 .ia-logo-title {
-  color: #ffffff;
+  color: #EFECE3;
   font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-align: center;
   margin: 0;
-  animation: ia-word-rise 0.5s cubic-bezier(0.16,1,0.3,1) 0.18s both;
+  animation: ia-word-rise 0.6s cubic-bezier(0.16,1,0.3,1) 0.3s both;
 }
 
 /* Subtitle */
 .ia-logo-subtitle {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(239,236,227,0.45);
   font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 400;
@@ -203,17 +232,17 @@
   text-transform: uppercase;
   text-align: center;
   margin: 0;
-  animation: ia-word-rise 0.5s cubic-bezier(0.16,1,0.3,1) 0.36s both;
+  animation: ia-word-rise 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s both;
 }
 
 @keyframes ia-word-rise {
-  from { opacity: 0; transform: translateY(8px);  }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .ia-collision-text { font-size: 11px; letter-spacing: 0.12em; }
+  .ia-tagline        { font-size: 10px; letter-spacing: 0.14em; }
   .ia-logo-title     { font-size: 18px; }
   .ia-logo-icon      { font-size: 32px; }
 }

@@ -54,8 +54,14 @@ def _load_model():
     if _model is None:
         with _lock:
             if _model is None:
-                _processor = CLIPProcessor.from_pretrained(MODEL_PATH)
-                _model     = CLIPModel.from_pretrained(MODEL_PATH).to(device)
+                try:
+                    # Use local cache first — avoids flaky HF Hub network checks
+                    _processor = CLIPProcessor.from_pretrained(MODEL_PATH, local_files_only=True)
+                    _model     = CLIPModel.from_pretrained(MODEL_PATH, local_files_only=True).to(device)
+                except OSError:
+                    # Not yet cached — download from HuggingFace
+                    _processor = CLIPProcessor.from_pretrained(MODEL_PATH)
+                    _model     = CLIPModel.from_pretrained(MODEL_PATH).to(device)
                 _model.eval()
 
     return _model, _processor
@@ -234,7 +240,8 @@ def embed_image(image_path) -> "np.ndarray":
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
-        features = model.get_image_features(pixel_values=inputs["pixel_values"])
+        vision_outputs = model.vision_model(pixel_values=inputs["pixel_values"])
+        features = model.visual_projection(vision_outputs.pooler_output)
 
     features = features / features.norm(dim=-1, keepdim=True)
     return features[0].cpu().numpy().astype("float32")

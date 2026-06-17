@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Disaster Atmosphere Theme Engine — Obsidian Dark Edition
+// Disaster Atmosphere Theme Engine — Intelligence Blue Edition
 // ---------------------------------------------------------------------------
 // True-black base (#000000) with disaster-type accent shifts.
 // All glows are stronger than the light edition to read on dark backgrounds.
@@ -10,13 +10,13 @@ export const DISASTER_THEMES = {
     bg:       '#000000',
     surface:  '#0F0F0F',
     surface2: '#161616',
-    bubble:   'rgba(133,57,83,0.10)',
-    chip:     'rgba(133,57,83,0.14)',
-    primary:  '#853953',
-    accent:   '#612D53',
-    muted:    'rgba(243,244,244,0.45)',
-    glow1:    'rgba(133,57,83,0.22)',
-    glow2:    'rgba(97,45,83,0.14)',
+    bubble:   'rgba(143,171,212,0.10)',
+    chip:     'rgba(143,171,212,0.14)',
+    primary:  '#8FABD4',
+    accent:   '#4A70A9',
+    muted:    'rgba(239,236,227,0.45)',
+    glow1:    'rgba(143,171,212,0.22)',
+    glow2:    'rgba(74,112,169,0.14)',
     label:    '',
   },
 

@@ -19,7 +19,7 @@ function buildStreamStyle(dir, color, glow, phase) {
     left: "50%",
     borderRadius: "4px",
     pointerEvents: "none",
-    transition: "transform 1.35s cubic-bezier(0.16,1,0.3,1), opacity 0.35s ease",
+    transition: "transform 1.6s cubic-bezier(0.16,1,0.3,1), opacity 0.6s ease",
     opacity: phase >= 3 ? 0 : 1,
     willChange: "transform",
   };
@@ -58,17 +58,17 @@ function buildStreamStyle(dir, color, glow, phase) {
 }
 
 export default function IntroAnimation({ onComplete }) {
-  const canvasRef     = useRef(null);
-  const rafRef        = useRef(null);
-  const phaseRef      = useRef(0);
-  const particlesRef  = useRef([]);
-  const explodedRef   = useRef(false);
+  const canvasRef    = useRef(null);
+  const rafRef       = useRef(null);
+  const phaseRef     = useRef(0);
+  const particlesRef = useRef([]);
+  const frameRef     = useRef(0);
   const [phase,   setPhase]   = useState(0);
   const [exiting, setExiting] = useState(false);
 
   // ── Skip / phase timeline ──────────────────────────────────────────────────
   useEffect(() => {
-    const seen         = sessionStorage.getItem(SKIP_KEY);
+    const seen          = sessionStorage.getItem(SKIP_KEY);
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (seen || reducedMotion) {
@@ -82,12 +82,11 @@ export default function IntroAnimation({ onComplete }) {
       setTimeout(() => { setPhase(n); phaseRef.current = n; }, ms);
 
     const timers = [
-      advance(1,   80),    // streams slide in
-      advance(2, 1600),    // streams converge / glow pulse
-      advance(3, 3100),    // collision burst + shockwave
-      advance(4, 4100),    // logo materialises
-      setTimeout(() => setExiting(true), 5100),
-      setTimeout(() => onComplete(), 5700),
+      advance(1,   80),     // Phase 1: streams slide in
+      advance(2, 3500),     // Phase 2: convergence complete — energy core + tagline
+      advance(3, 7000),     // Phase 3: logo materializes
+      setTimeout(() => setExiting(true), 10500),
+      setTimeout(() => onComplete(), 11500),
     ];
     return () => timers.forEach(clearTimeout);
   }, [onComplete]);
@@ -106,11 +105,15 @@ export default function IntroAnimation({ onComplete }) {
     window.addEventListener("resize", resize);
 
     const TINTS = [
-      "#ffffff", "#ffffff", "#ffffff", "#ffffff",
-      "#4DA6FF", "#FF5A36", "#4CAF50", "#C8956A",
+      "#ffffff", "#ffffff", "#ffffff",
+      "#4DA6FF", "#4DA6FF",
+      "#FF5A36",
+      "#4CAF50",
+      "#C8956A",
+      "#8FABD4", "#8FABD4",
     ];
 
-    particlesRef.current = Array.from({ length: 90 }, () => ({
+    particlesRef.current = Array.from({ length: 100 }, () => ({
       x:     Math.random() * window.innerWidth,
       y:     Math.random() * window.innerHeight,
       vx:    (Math.random() - 0.5) * 0.5,
@@ -118,9 +121,9 @@ export default function IntroAnimation({ onComplete }) {
       r:     Math.random() * 1.4 + 0.25,
       color: TINTS[Math.floor(Math.random() * TINTS.length)],
       alpha: Math.random() * 0.38 + 0.06,
+      orbitR: 80 + Math.random() * 80,
+      orbitDir: Math.random() > 0.5 ? 1 : -1,
     }));
-
-    let frame = 0;
 
     const tick = () => {
       const w  = canvas.width;
@@ -128,40 +131,41 @@ export default function IntroAnimation({ onComplete }) {
       const cx = w / 2;
       const cy = h / 2;
       const p  = phaseRef.current;
+      const f  = frameRef.current;
 
       ctx.clearRect(0, 0, w, h);
 
-      // Explosion burst: fire particles outward at phase 3
-      if (p === 3 && !explodedRef.current) {
-        explodedRef.current = true;
-        for (const pt of particlesRef.current) {
-          const dx  = pt.x - cx;
-          const dy  = pt.y - cy;
-          const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          const spd = 3 + Math.random() * 7;
-          pt.vx = (dx / len) * spd;
-          pt.vy = (dy / len) * spd;
-        }
-      }
-
-      // Phase 4: decelerate
-      if (p === 4) {
-        for (const pt of particlesRef.current) {
-          pt.vx *= 0.94;
-          pt.vy *= 0.94;
-        }
-      }
-
-      // Phase 2: drift toward center
-      if (p === 2) {
+      // Phase 1: slowly drift toward center
+      if (p === 1) {
         for (const pt of particlesRef.current) {
           const dx   = cx - pt.x;
           const dy   = cy - pt.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          if (dist > 60) {
-            pt.vx += (dx / dist) * 0.006;
-            pt.vy += (dy / dist) * 0.006;
+          if (dist > 80) {
+            pt.vx += (dx / dist) * 0.004;
+            pt.vy += (dy / dist) * 0.004;
           }
+          const spd = Math.sqrt(pt.vx * pt.vx + pt.vy * pt.vy);
+          if (spd > 1.2) { pt.vx = (pt.vx / spd) * 1.2; pt.vy = (pt.vy / spd) * 1.2; }
+        }
+      }
+
+      // Phase 2+: particles orbit the center
+      if (p >= 2) {
+        for (const pt of particlesRef.current) {
+          const dx   = pt.x - cx;
+          const dy   = pt.y - cy;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          // Attract to target orbital radius
+          const radialForce = (dist - pt.orbitR) * 0.0015;
+          pt.vx -= (dx / dist) * radialForce;
+          pt.vy -= (dy / dist) * radialForce;
+
+          // Tangential force — gentle orbit
+          pt.vx += (dy / dist) * 0.008 * pt.orbitDir;
+          pt.vy -= (dx / dist) * 0.008 * pt.orbitDir;
+
           const spd = Math.sqrt(pt.vx * pt.vx + pt.vy * pt.vy);
           if (spd > 1.6) { pt.vx = (pt.vx / spd) * 1.6; pt.vy = (pt.vy / spd) * 1.6; }
         }
@@ -183,18 +187,19 @@ export default function IntroAnimation({ onComplete }) {
       }
       ctx.globalAlpha = 1;
 
-      // Central radial glow in phases 2-4
+      // Central radial glow in phases 2+
       if (p >= 2) {
-        const pulse  = p === 2 ? 0.22 + Math.sin(frame * 0.07) * 0.10 : p === 3 ? 0.55 : 0.18;
-        const radius = p === 3 ? 160 : 100;
+        const pulse  = 0.18 + Math.sin(f * 0.05) * 0.10;
+        const radius = 90;
         const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        gr.addColorStop(0, `rgba(255,255,255,${pulse})`);
+        gr.addColorStop(0, `rgba(143,171,212,${pulse + 0.1})`);
+        gr.addColorStop(0.4, `rgba(74,112,169,${pulse * 0.5})`);
         gr.addColorStop(1, "transparent");
         ctx.fillStyle = gr;
         ctx.fillRect(0, 0, w, h);
       }
 
-      frame++;
+      frameRef.current++;
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -210,31 +215,35 @@ export default function IntroAnimation({ onComplete }) {
     <div className={`intro-root${exiting ? " intro-exiting" : ""}`} aria-hidden="true">
       <canvas ref={canvasRef} className="intro-canvas" />
 
-      {/* Elemental streams */}
+      {/* Elemental streams — visible in Phase 1, fade at Phase 3 */}
       {ELEMENTS.map((el) => (
         <div
           key={el.id}
           style={buildStreamStyle(el.dir, el.color, el.glow, phase)}
-          className={phase === 2 ? "ia-stream-pulse" : ""}
+          className={phase === 1 ? "ia-stream-pulse" : ""}
         />
       ))}
 
-      {/* Phase 3: Collision burst + shockwave */}
-      {phase >= 3 && (
-        <div className="ia-collision">
-          <div className="ia-shockwave" />
-          <div className="ia-shockwave ia-shockwave-2" />
+      {/* Phase 2: persistent energy core + radar rings + tagline */}
+      {phase >= 2 && phase < 3 && (
+        <div className="ia-convergence">
           <div className="ia-energy-core" />
-          <p className={`ia-collision-text${phase >= 4 ? " ia-text-out" : ""}`}>
+          <div className="ia-radar-ring" />
+          <div className="ia-radar-ring ia-radar-ring-2" />
+          <div className="ia-radar-ring ia-radar-ring-3" />
+          <p className="ia-tagline">
             Monitoring. Understanding. Responding.
           </p>
         </div>
       )}
 
-      {/* Phase 4: Logo */}
-      {phase >= 4 && (
+      {/* Phase 3: Logo materializes */}
+      {phase >= 3 && (
         <div className="ia-logo">
           <div className="ia-emblem">
+            <div className="ia-radar-ring ia-radar-ring-logo" />
+            <div className="ia-radar-ring ia-radar-ring-logo-2" />
+            <div className="ia-energy-core ia-energy-core-logo" />
             <div className="ia-orbit ia-orbit-1" />
             <div className="ia-orbit ia-orbit-2" />
             <span

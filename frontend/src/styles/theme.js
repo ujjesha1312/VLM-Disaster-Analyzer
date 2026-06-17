@@ -1,51 +1,49 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// VLM Disaster Analyzer — Design System  v2
-// Theme: Obsidian Dark  ·  Enterprise Intelligence Platform
+// VLM Disaster Analyzer — Design System  v3
+// Theme: Intelligence Blue  ·  Disaster Intelligence Platform
 //
 // Single source of truth for all visual tokens.
 // Mirrors tailwind.config.js — both must stay in sync.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Color palette ─────────────────────────────────────────────────────────────
 export const colors = {
   // Backgrounds
-  bg:              "#000000",            // true black — main canvas
-  surface:         "#0F0F0F",            // card / panel background
-  surfaceElevated: "#161616",            // nested surfaces, inner panels
-  surfaceHigh:     "#1C1C1C",            // highest elevation, popovers
+  bg:              "#000000",
+  surface:         "#0F0F0F",
+  surfaceElevated: "#161616",
+  surfaceHigh:     "#1C1C1C",
 
   // Brand
-  primary:   "#853953",                  // crimson rose — core accent
-  secondary: "#612D53",                  // deep plum — hover / secondary
+  primary:   "#8FABD4",
+  secondary: "#4A70A9",
 
   // Text
-  text:       "#F3F4F4",
-  textMuted:  "rgba(243,244,244,0.60)",
-  textFaint:  "rgba(243,244,244,0.35)",
-  textGhost:  "rgba(243,244,244,0.18)",
+  text:       "#EFECE3",
+  textMuted:  "rgba(239,236,227,0.60)",
+  textFaint:  "rgba(239,236,227,0.35)",
+  textGhost:  "rgba(239,236,227,0.18)",
 
   // Borders
-  border:       "rgba(243,244,244,0.08)",
-  borderMid:    "rgba(243,244,244,0.14)",
-  borderStrong: "rgba(243,244,244,0.24)",
+  border:       "rgba(239,236,227,0.08)",
+  borderMid:    "rgba(239,236,227,0.14)",
+  borderStrong: "rgba(239,236,227,0.24)",
 
   // Glows
-  primaryGlow:   "rgba(133,57,83,0.22)",
-  secondaryGlow: "rgba(97,45,83,0.15)",
+  primaryGlow:   "rgba(143,171,212,0.22)",
+  secondaryGlow: "rgba(74,112,169,0.15)",
 
   // Severity
-  critical: { bg: "#F3F4F4",                 text: "#000000",                border: "rgba(243,244,244,0.60)" },
-  high:     { bg: "rgba(133,57,83,0.22)",     text: "#D4869F",                border: "rgba(133,57,83,0.45)"   },
-  moderate: { bg: "rgba(133,57,83,0.14)",     text: "#C07090",                border: "rgba(133,57,83,0.28)"   },
-  low:      { bg: "rgba(243,244,244,0.06)",   text: "rgba(243,244,244,0.55)", border: "rgba(243,244,244,0.14)" },
+  critical: { bg: "#EFECE3",                   text: "#000000",                  border: "rgba(239,236,227,0.60)" },
+  high:     { bg: "rgba(143,171,212,0.22)",     text: "#A8C4E0",                  border: "rgba(143,171,212,0.45)" },
+  moderate: { bg: "rgba(143,171,212,0.14)",     text: "#8FABD4",                  border: "rgba(143,171,212,0.28)" },
+  low:      { bg: "rgba(239,236,227,0.06)",     text: "rgba(239,236,227,0.55)",   border: "rgba(239,236,227,0.14)" },
 
-  // Status — use these instead of Tailwind built-in emerald/red/amber
+  // Status
   success: "#34D399",
   error:   "#F87171",
   warning: "#FBBF24",
 };
 
-// ── Typography ────────────────────────────────────────────────────────────────
 export const fonts = {
   display: "'Hanken Grotesk', sans-serif",
   body:    "'Inter', sans-serif",
@@ -64,24 +62,20 @@ export const typography = {
   monoSm:     { size: "13px", lineHeight: "18px", weight: 400 },
 };
 
-// ── Shadows ───────────────────────────────────────────────────────────────────
-// Named tokens map 1-to-1 with tailwind.config.js boxShadow extensions.
 export const shadows = {
   sm:       "0 1px 4px rgba(0,0,0,0.70)",
   md:       "0 4px 20px rgba(0,0,0,0.75)",
   lg:       "0 8px 40px rgba(0,0,0,0.85)",
-  nav:      "0 1px 0 rgba(243,244,244,0.06)",
-  card:     "0 1px 3px rgba(0,0,0,0.70), 0 0 0 1px rgba(243,244,244,0.06)",
-  input:    "0 0 0 1px rgba(243,244,244,0.10), 0 4px 24px rgba(0,0,0,0.80)",
-  // Glow family — primary brand color at increasing intensities
-  glowSm:   "0 0 16px rgba(133,57,83,0.25)",
-  glowMd:   "0 0 20px rgba(133,57,83,0.35)",
-  glowLg:   "0 0 30px rgba(133,57,83,0.50)",
-  glowXl:   "0 0 40px rgba(133,57,83,0.22), 0 0 80px rgba(97,45,83,0.12)",
-  accentSm: "0 0 20px rgba(133,57,83,0.10)",
+  nav:      "0 1px 0 rgba(239,236,227,0.06)",
+  card:     "0 1px 3px rgba(0,0,0,0.70), 0 0 0 1px rgba(239,236,227,0.06)",
+  input:    "0 0 0 1px rgba(239,236,227,0.10), 0 4px 24px rgba(0,0,0,0.80)",
+  glowSm:   "0 0 16px rgba(143,171,212,0.25)",
+  glowMd:   "0 0 20px rgba(143,171,212,0.35)",
+  glowLg:   "0 0 30px rgba(143,171,212,0.50)",
+  glowXl:   "0 0 40px rgba(143,171,212,0.22), 0 0 80px rgba(74,112,169,0.12)",
+  accentSm: "0 0 20px rgba(143,171,212,0.10)",
 };
 
-// ── Border radius ─────────────────────────────────────────────────────────────
 export const borderRadius = {
   xs:   "6px",
   sm:   "8px",
@@ -91,7 +85,6 @@ export const borderRadius = {
   full: "9999px",
 };
 
-// ── Transitions ───────────────────────────────────────────────────────────────
 export const transitions = {
   fast:   "120ms ease",
   normal: "220ms ease",
@@ -99,7 +92,6 @@ export const transitions = {
   theme:  "550ms cubic-bezier(0.4, 0, 0.2, 1)",
 };
 
-// ── Spacing / layout ──────────────────────────────────────────────────────────
 export const spacing = {
   navHeight:    "64px",
   sidebarWidth: "240px",
@@ -107,13 +99,9 @@ export const spacing = {
   maxPage:      "1200px",
 };
 
-// ── Gradient presets ──────────────────────────────────────────────────────────
 export const gradients = {
-  // Subtle brand radial used as page ambient glow
-  ambient: "radial-gradient(ellipse at 40% 45%, rgba(133,57,83,0.06) 0%, #000000 55%, #000000 100%)",
-  // Full brand linear for filled surfaces
-  primary: "linear-gradient(135deg, #853953 0%, #612D53 100%)",
-  // Horizontal / vertical stream variants (used in IntroAnimation)
+  ambient: "radial-gradient(ellipse at 40% 45%, rgba(143,171,212,0.06) 0%, #000000 55%, #000000 100%)",
+  primary: "linear-gradient(135deg, #8FABD4 0%, #4A70A9 100%)",
   streamH: (color) => `linear-gradient(to right, transparent 0%, ${color} 55%, #ffffff 100%)`,
   streamV: (color) => `linear-gradient(to bottom, transparent 0%, ${color} 55%, #ffffff 100%)`,
 };

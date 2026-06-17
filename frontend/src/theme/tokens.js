@@ -10,6 +10,6 @@ export const TOKENS = {
   textMuted:   `rgba(44,44,44,0.55)`,
   border:      `rgba(44,44,44,0.10)`,
   borderStrong:`rgba(44,44,44,0.18)`,
-  primarySoft: `rgba(133,57,83,0.08)`,
-  accentSoft:  `rgba(97,45,83,0.08)`,
+  primarySoft: `rgba(143,171,212,0.08)`,
+  accentSoft:  `rgba(74,112,169,0.08)`,
 };

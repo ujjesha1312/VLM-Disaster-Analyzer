@@ -1,8 +1,8 @@
 export const PALETTE = {
-  bg:      '#F3F4F4',
+  bg:      '#EFECE3',
   white:   '#FFFFFF',
   surface: '#ECEDEF',
-  primary: '#853953',
-  accent:  '#612D53',
+  primary: '#8FABD4',
+  accent:  '#4A70A9',
   dark:    '#2C2C2C',
 };

@@ -2,18 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Atmosphere CSS variable defaults (dark theme) ───────────────────────── */
+/* ── Atmosphere CSS variable defaults ────────────────────────────────────── */
 :root {
   --atm-bg:       #000000;
   --atm-surface:  #0F0F0F;
   --atm-surface2: #161616;
-  --atm-bubble:   rgba(133,57,83,0.10);
-  --atm-chip:     rgba(133,57,83,0.14);
-  --atm-primary:  #853953;
-  --atm-accent:   #612D53;
-  --atm-muted:    rgba(243,244,244,0.45);
-  --atm-glow-1:   rgba(133,57,83,0.22);
-  --atm-glow-2:   rgba(97,45,83,0.14);
+  --atm-bubble:   rgba(143,171,212,0.10);
+  --atm-chip:     rgba(143,171,212,0.14);
+  --atm-primary:  #8FABD4;
+  --atm-accent:   #4A70A9;
+  --atm-muted:    rgba(239,236,227,0.45);
+  --atm-glow-1:   rgba(143,171,212,0.22);
+  --atm-glow-2:   rgba(74,112,169,0.14);
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -23,7 +23,7 @@
 
 body {
   background-color: var(--atm-bg);
-  color: #F3F4F4;
+  color: #EFECE3;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -39,30 +39,29 @@ body {
 
 /* ── Upload dashed border ────────────────────────────────────────────────── */
 .upload-dashed {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23853953' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%238FABD4' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed:hover {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23F3F4F4' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23EFECE3' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed-active {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23853953' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%238FABD4' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 
 /* ── Scrollbars ──────────────────────────────────────────────────────────── */
 .chat-container::-webkit-scrollbar       { width: 3px; }
 .chat-container::-webkit-scrollbar-track { background: transparent; }
 .chat-container::-webkit-scrollbar-thumb {
-  background: rgba(133,57,83,0.35);
+  background: rgba(143,171,212,0.35);
   border-radius: 10px;
 }
 .chat-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(133,57,83,0.55);
+  background: rgba(143,171,212,0.55);
 }
 
-/* Thin global scrollbar */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(243,244,244,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(239,236,227,0.12); border-radius: 4px; }
 
 /* ── Backdrop blur ───────────────────────────────────────────────────────── */
 .backdrop-blur-md {
@@ -118,7 +117,7 @@ h1, h2, h3, .font-headline {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #853953;
+  background-color: #8FABD4;
   animation: typing-bounce 1.2s ease-in-out infinite;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -159,7 +158,6 @@ h1, h2, h3, .font-headline {
   transition: color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Atmosphere label badge */
 .atm-label-badge {
   display: inline-flex;
   align-items: center;
@@ -186,7 +184,7 @@ h1, h2, h3, .font-headline {
   50%       { opacity: 0.4; }
 }
 
-/* ── Scan line overlay (subtle NASA terminal feel) ───────────────────────── */
+/* ── Scan line overlay ───────────────────────────────────────────────────── */
 @keyframes scanline {
   from { background-position: 0 0; }
   to   { background-position: 0 100%; }
@@ -194,16 +192,14 @@ h1, h2, h3, .font-headline {
 
 /* ── Glow pulse animation ────────────────────────────────────────────────── */
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(133,57,83,0.15); }
-  50%       { box-shadow: 0 0 40px rgba(133,57,83,0.35); }
+  0%, 100% { box-shadow: 0 0 20px rgba(143,171,212,0.15); }
+  50%       { box-shadow: 0 0 40px rgba(143,171,212,0.35); }
 }
 .glow-pulse {
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
 /* ── Splash / Intro Screen ───────────────────────────────────────────────── */
-/* (SplashScreen.jsx is no longer mounted; styles kept for reference)         */
-
 .splash-screen {
   position: fixed;
   inset: 0;
@@ -225,19 +221,19 @@ h1, h2, h3, .font-headline {
 }
 
 .splash-icon { background: #0F0F0F; border-radius: 24px; }
-.splash-icon .material-symbols-outlined { color: #853953; }
-.splash-title   { color: #F3F4F4; font-family: 'Hanken Grotesk', sans-serif; }
-.splash-subtitle { color: rgba(243,244,244,0.55); }
+.splash-icon .material-symbols-outlined { color: #8FABD4; }
+.splash-title   { color: #EFECE3; font-family: 'Hanken Grotesk', sans-serif; }
+.splash-subtitle { color: rgba(239,236,227,0.55); }
 
 /* ── Focus visible ring ──────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid rgba(133,57,83,0.70);
+  outline: 2px solid rgba(143,171,212,0.70);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 /* ── Selection color ─────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(133,57,83,0.35);
-  color: #F3F4F4;
+  background: rgba(143,171,212,0.35);
+  color: #EFECE3;
 }
