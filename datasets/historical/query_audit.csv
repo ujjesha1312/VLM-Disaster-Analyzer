@@ -1,0 +1,51 @@
+event_id,event_name,year,category,best_query,candidates,alt_used,status
+flood_kerala_2018,Kerala Floods,2018,flood,Kerala Floods 2018,29,False,READY
+flood_assam_2022,Assam Floods,2022,flood,Assam Floods,18,False,READY
+flood_chennai_2015,Chennai Floods,2015,flood,South India floods 2015,25,False,READY
+flood_uttarakhand_2013,Uttarakhand Flash Floods,2013,flood,Uttarakhand floods 2013,25,False,READY
+flood_pakistan_2022,Pakistan Floods,2022,flood,Pakistan Floods,22,False,READY
+flood_mumbai_2005,Mumbai Floods,2005,flood,Mumbai Floods,12,False,READY
+flood_bihar_2008,Bihar Floods,2008,flood,Bihar flood 2008,12,False,READY
+flood_kashmir_2014,Kashmir Floods,2014,flood,Kashmir Floods 2014,12,False,READY
+flood_bangladesh_2020,Bangladesh Floods,2020,flood,Bangladesh Floods,24,False,READY
+flood_germany_2021,Germany Floods,2021,flood,Germany Floods,28,False,READY
+cyclone_fani_2019,Cyclone Fani,2019,cyclone,Cyclone Fani 2019,26,False,READY
+cyclone_amphan_2020,Cyclone Amphan,2020,cyclone,Cyclone Amphan,24,False,READY
+cyclone_yaas_2021,Cyclone Yaas,2021,cyclone,Cyclone Yaas 2021,21,False,READY
+cyclone_tauktae_2021,Cyclone Tauktae,2021,cyclone,Cyclone Tauktae 2021,22,False,READY
+cyclone_odisha_1999,Odisha Super Cyclone,1999,cyclone,1999 Odisha cyclone,13,False,READY
+cyclone_hudhud_2014,Cyclone Hudhud,2014,cyclone,Cyclone Hudhud,29,False,READY
+cyclone_phailin_2013,Cyclone Phailin,2013,cyclone,Cyclone Phailin 2013,22,False,READY
+cyclone_nargis_2008,Cyclone Nargis,2008,cyclone,Cyclone Nargis 2008,22,False,READY
+cyclone_mocha_2023,Cyclone Mocha,2023,cyclone,Cyclone Mocha,23,False,READY
+cyclone_biparjoy_2023,Cyclone Biparjoy,2023,cyclone,Cyclone Biparjoy 2023,16,False,READY
+earthquake_gujarat_2001,Bhuj Earthquake,2001,earthquake,Bhuj Earthquake,19,False,READY
+earthquake_nepal_2015,Nepal Earthquake,2015,earthquake,2015 Nepal earthquake,26,False,READY
+earthquake_turkey_2023,Turkey Earthquake,2023,earthquake,Turkey Earthquake,23,False,READY
+earthquake_kashmir_2005,Kashmir Earthquake,2005,earthquake,2005 Kashmir earthquake,18,False,READY
+earthquake_sikkim_2011,Sikkim Earthquake,2011,earthquake,Sikkim Earthquake,13,False,READY
+earthquake_japan_2011,Tohoku Earthquake,2011,earthquake,2011 Tohoku earthquake,28,False,READY
+earthquake_haiti_2010,Haiti Earthquake,2010,earthquake,2010 Haiti earthquake,22,False,READY
+earthquake_morocco_2023,Morocco Earthquake,2023,earthquake,2023 Morocco earthquake,29,False,READY
+earthquake_indonesia_2018,Sulawesi Earthquake,2018,earthquake,2018 Sulawesi earthquake,19,False,READY
+earthquake_afghanistan_2022,Afghanistan Earthquake,2022,earthquake,earthquake 2022,15,True,READY
+landslide_malin_2014,Malin Landslide,2014,landslide,landslide 2014,21,True,READY
+landslide_chamoli_2021,Chamoli Disaster,2021,landslide,landslide 2021,27,True,READY
+landslide_kerala_2020,Pettimudi Landslide,2020,landslide,landslide 2020,26,True,READY
+landslide_sikkim_2023,Sikkim Flood,2023,landslide,2023 Sikkim flood,17,False,READY
+landslide_darjeeling_2017,Darjeeling Landslide,2017,landslide,landslide 2017,20,True,READY
+landslide_kedarnath_2013,Kedarnath Landslide,2013,landslide,Kedarnath flood 2013,24,False,READY
+landslide_oso_2014,Oso Mudslide,2014,landslide,2014 Oso mudslide,23,False,READY
+landslide_atami_2021,Atami Mudslide,2021,landslide,2021 Atami mudslide,26,False,READY
+landslide_montecito_2018,Montecito Mudslide,2018,landslide,Montecito Mudslide,14,False,READY
+landslide_petropolis_2022,Petropolis Landslide,2022,landslide,2022 Petropolis landslides,25,False,READY
+wildfire_australia_2020,Australian Bushfires,2020,wildfire,Australia bushfire 2019 2020,28,False,READY
+wildfire_maui_2023,Maui Wildfire,2023,wildfire,Maui Wildfire,30,False,READY
+wildfire_california_2023,California Wildfire,2023,wildfire,California Wildfire,28,False,READY
+wildfire_canada_2023,Canada Wildfire,2023,wildfire,Canada Wildfire,21,False,READY
+wildfire_uttarakhand_2016,Uttarakhand Forest Fire,2016,wildfire,Uttarakhand Forest Fire,20,False,READY
+wildfire_amazon_2019,Amazon Fires,2019,wildfire,Amazon Fires,19,False,READY
+wildfire_greece_2023,Greece Wildfire,2023,wildfire,Greece Wildfire,19,False,READY
+wildfire_turkey_2021,Turkey Wildfire,2021,wildfire,2021 Turkey wildfires,22,False,READY
+wildfire_siberia_2021,Siberia Wildfire,2021,wildfire,Siberia Wildfire,27,False,READY
+wildfire_chile_2024,Chile Wildfire,2024,wildfire,2024 Valparaiso fires,26,False,READY

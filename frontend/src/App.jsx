@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, Fragment } from "react";
 import { applyTheme, resetTheme, getTheme } from "./themeEngine";
-import SplashScreen from "./SplashScreen";
+import IntroAnimation from "./components/IntroAnimation";
 
 // ---------------------------------------------------------------------------
 // Backend
@@ -479,10 +479,10 @@ function computeConsensus(modelOutputs, eventType) {
 
 function severityChipClass(severity) {
   switch (severity) {
-    case "Critical": return "bg-[#2C2C2C] text-white border-[#2C2C2C]/60";
-    case "High":     return "bg-[#612D53]/12 text-[#612D53] border-[#612D53]/40";
-    case "Moderate": return "bg-[#853953]/10 text-[#853953] border-[#853953]/35";
-    default:         return "bg-[#853953]/6 text-[#2C2C2C]/70 border-[#2C2C2C]/15";
+    case "Critical": return "bg-white text-[#000000] border-white/60";
+    case "High":     return "bg-[#853953]/22 text-[#D4869F] border-[#853953]/45";
+    case "Moderate": return "bg-[#853953]/14 text-[#C07090] border-[#853953]/28";
+    default:         return "bg-[#F3F4F4]/6 text-[#F3F4F4]/55 border-[#F3F4F4]/14";
   }
 }
 
@@ -492,10 +492,10 @@ function severityChipClass(severity) {
 
 function LevelBadge({ level }) {
   const cls =
-    level === "Critical" ? "bg-[#2C2C2C] text-white border-[#2C2C2C]/60" :
-    level === "High"     ? "bg-[#612D53]/12 text-[#612D53] border-[#612D53]/40" :
-    level === "Moderate" ? "bg-[#853953]/10 text-[#853953] border-[#853953]/35" :
-                           "bg-[#853953]/6 text-[#2C2C2C]/70 border-[#2C2C2C]/15";
+    level === "Critical" ? "bg-white text-[#000000] border-white/60" :
+    level === "High"     ? "bg-[#853953]/22 text-[#D4869F] border-[#853953]/45" :
+    level === "Moderate" ? "bg-[#853953]/14 text-[#C07090] border-[#853953]/28" :
+                           "bg-[#F3F4F4]/6 text-[#F3F4F4]/55 border-[#F3F4F4]/14";
   return (
     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${cls}`}>{level}</span>
   );
@@ -505,8 +505,8 @@ function KVRow({ label, value }) {
   if (!value) return null;
   return (
     <div className="flex gap-2">
-      <span className="text-[#2C2C2C]/70 text-xs shrink-0 w-36">{label}</span>
-      <span className="text-[#2C2C2C]/80 text-xs">{value}</span>
+      <span className="text-[#F3F4F4]/70 text-xs shrink-0 w-36">{label}</span>
+      <span className="text-[#F3F4F4]/80 text-xs">{value}</span>
     </div>
   );
 }
@@ -522,19 +522,19 @@ function EvidencePanel({ modelOutputs }) {
   const qwenM  = modelOutputs.qwen?.metrics  ?? {};
 
   return (
-    <div className="mt-6 border border-[#2C2C2C]/30 rounded-xl overflow-hidden">
+    <div className="mt-6 border border-[#F3F4F4]/12 rounded-xl overflow-hidden">
       <button
-        className="w-full flex items-center justify-between p-4 bg-white atm-bubble hover:bg-black/[.02] transition-colors"
+        className="w-full flex items-center justify-between p-4 bg-[#0F0F0F] atm-bubble hover:bg-[#F3F4F4]/[.04] transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#2C2C2C] text-[18px]">database</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-[#2C2C2C]">
+          <span className="material-symbols-outlined text-[#F3F4F4] text-[18px]">database</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#F3F4F4]">
             How I reached this conclusion
           </span>
         </div>
         <span
-          className="material-symbols-outlined text-[#2C2C2C] transition-transform duration-200"
+          className="material-symbols-outlined text-[#F3F4F4] transition-transform duration-200"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         >
           expand_more
@@ -542,28 +542,28 @@ function EvidencePanel({ modelOutputs }) {
       </button>
 
       {open && (
-        <div className="bg-[#F3F4F4] atm-surface2 p-4 space-y-5 divide-y divide-[#2C2C2C]/10 max-h-[520px] overflow-y-auto">
+        <div className="bg-[#0A0A0A] atm-surface2 p-4 space-y-5 divide-y divide-[#F3F4F4]/6 max-h-[520px] overflow-y-auto">
 
           {/* ── CLIP ─────────────────────────────────────────────────────────── */}
           <div className="pt-2 space-y-3">
-            <p className="text-[#2C2C2C] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <p className="text-[#F3F4F4] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               CLIP-ViT-L/14
             </p>
             {modelOutputs.clip?.error ? (
-              <p className="text-red-600 text-sm italic">Failed — {modelOutputs.clip.error}</p>
+              <p className="text-[#F87171] text-sm italic">Failed — {modelOutputs.clip.error}</p>
             ) : (
               <>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#2C2C2C] text-base font-semibold">{clipM.disaster_type ?? "—"}</span>
+                  <span className="text-[#F3F4F4] text-base font-semibold">{clipM.disaster_type ?? "—"}</span>
                   {clipM.confidence_level && <LevelBadge level={clipM.confidence_level} />}
                 </div>
                 {clipM.top_3_predictions?.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] text-[#2C2C2C]/55 uppercase tracking-wider">Top predictions</p>
+                    <p className="text-[10px] text-[#F3F4F4]/55 uppercase tracking-wider">Top predictions</p>
                     {clipM.top_3_predictions.map((p) => (
                       <div key={p.label} className="flex items-center gap-2">
-                        <span className="text-[#2C2C2C] text-xs w-36 shrink-0 truncate">{p.label}</span>
-                        <div className="flex-1 h-1.5 bg-[#F3F4F4] rounded-full overflow-hidden">
+                        <span className="text-[#F3F4F4] text-xs w-36 shrink-0 truncate">{p.label}</span>
+                        <div className="flex-1 h-1.5 bg-[#F3F4F4]/8 rounded-full overflow-hidden">
                           <div className="h-full bg-[#853953]/70 rounded-full" style={{ width: `${Math.min(p.score, 100)}%` }} />
                         </div>
                       </div>
@@ -576,20 +576,20 @@ function EvidencePanel({ modelOutputs }) {
 
           {/* ── BLIP-2 ───────────────────────────────────────────────────────── */}
           <div className="pt-4 space-y-3">
-            <p className="text-[#2C2C2C] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <p className="text-[#F3F4F4] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               BLIP-2 Caption
             </p>
             {modelOutputs.blip2?.error ? (
-              <p className="text-red-600 text-sm italic">Failed — {modelOutputs.blip2.error}</p>
+              <p className="text-[#F87171] text-sm italic">Failed — {modelOutputs.blip2.error}</p>
             ) : (
               <>
-                <p className="text-[#2C2C2C]/80 text-sm italic">
+                <p className="text-[#F3F4F4]/80 text-sm italic">
                   {blip2M.scene_description ? `"${blip2M.scene_description}"` : "—"}
                 </p>
                 {blip2M.keywords?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {blip2M.keywords.map((kw) => (
-                      <span key={kw} className="px-2 py-0.5 rounded-full bg-white border border-[#2C2C2C]/30 text-[#2C2C2C] text-[11px]">
+                      <span key={kw} className="px-2 py-0.5 rounded-full bg-[#0F0F0F] border border-[#F3F4F4]/12 text-[#F3F4F4] text-[11px]">
                         {kw}
                       </span>
                     ))}
@@ -601,11 +601,11 @@ function EvidencePanel({ modelOutputs }) {
 
           {/* ── LLaVA ────────────────────────────────────────────────────────── */}
           <div className="pt-4 space-y-3">
-            <p className="text-[#2C2C2C] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <p className="text-[#F3F4F4] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               LLaVA Reasoning
             </p>
             {modelOutputs.llava?.error ? (
-              <p className="text-red-600 text-sm italic">Failed — {modelOutputs.llava.error}</p>
+              <p className="text-[#F87171] text-sm italic">Failed — {modelOutputs.llava.error}</p>
             ) : (
               <>
                 <KVRow label="Disaster Type"         value={llavaM.disaster_type} />
@@ -617,7 +617,7 @@ function EvidencePanel({ modelOutputs }) {
                   <div>
                     <button
                       onClick={() => setLlavOpen((v) => !v)}
-                      className="text-[10px] text-[#2C2C2C] hover:text-[#2C2C2C] flex items-center gap-1 uppercase tracking-wider"
+                      className="text-[10px] text-[#F3F4F4] hover:text-[#F3F4F4] flex items-center gap-1 uppercase tracking-wider"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
                         {llavOpen ? "expand_less" : "expand_more"}
@@ -625,7 +625,7 @@ function EvidencePanel({ modelOutputs }) {
                       Full Assessment
                     </button>
                     {llavOpen && (
-                      <p className="mt-2 text-[#2C2C2C]/70 text-xs leading-relaxed border-l-2 border-[#2C2C2C]/40 pl-3 text-[#2C2C2C]/55">
+                      <p className="mt-2 text-[#F3F4F4]/70 text-xs leading-relaxed border-l-2 border-[#F3F4F4]/18 pl-3 text-[#F3F4F4]/55">
                         {llavaM.raw_assessment}
                       </p>
                     )}
@@ -637,11 +637,11 @@ function EvidencePanel({ modelOutputs }) {
 
           {/* ── Qwen ─────────────────────────────────────────────────────────── */}
           <div className="pt-4 space-y-3">
-            <p className="text-[#2C2C2C] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <p className="text-[#F3F4F4] text-xs uppercase font-semibold tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               Qwen2-VL Analysis
             </p>
             {modelOutputs.qwen?.error ? (
-              <p className="text-red-600 text-sm italic">Failed — {modelOutputs.qwen.error}</p>
+              <p className="text-[#F87171] text-sm italic">Failed — {modelOutputs.qwen.error}</p>
             ) : (
               <>
                 <KVRow label="Disaster Type"         value={qwenM.disaster_type} />
@@ -653,7 +653,7 @@ function EvidencePanel({ modelOutputs }) {
                   <div>
                     <button
                       onClick={() => setQwenOpen((v) => !v)}
-                      className="text-[10px] text-[#2C2C2C] hover:text-[#2C2C2C] flex items-center gap-1 uppercase tracking-wider"
+                      className="text-[10px] text-[#F3F4F4] hover:text-[#F3F4F4] flex items-center gap-1 uppercase tracking-wider"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>
                         {qwenOpen ? "expand_less" : "expand_more"}
@@ -661,7 +661,7 @@ function EvidencePanel({ modelOutputs }) {
                       Full Analysis
                     </button>
                     {qwenOpen && (
-                      <p className="mt-2 text-[#2C2C2C]/70 text-xs leading-relaxed border-l-2 border-[#2C2C2C]/40 pl-3 text-[#2C2C2C]/55">
+                      <p className="mt-2 text-[#F3F4F4]/70 text-xs leading-relaxed border-l-2 border-[#F3F4F4]/18 pl-3 text-[#F3F4F4]/55">
                         {qwenM.raw_analysis}
                       </p>
                     )}
@@ -685,19 +685,19 @@ function ReportCard({ title, icon, content, accent = false }) {
   return (
     <div className={`p-4 rounded-xl border ${
       accent
-        ? "bg-[#853953]/5 border-[#853953]/30"
-        : "bg-white border-[#2C2C2C]/20"
+        ? "bg-[#853953]/10 border-[#853953]/30 shadow-accent-sm"
+        : "bg-[#0F0F0F] border-[#F3F4F4]/9"
     }`}>
       <div className="flex items-center gap-2 mb-3">
         <span
-          className="material-symbols-outlined text-[#2C2C2C]"
+          className="material-symbols-outlined text-[#F3F4F4]"
           style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
         >
           {icon}
         </span>
-        <h4 className="text-[#2C2C2C] text-xs font-semibold uppercase tracking-widest">{title}</h4>
+        <h4 className="text-[#F3F4F4] text-xs font-semibold uppercase tracking-widest">{title}</h4>
       </div>
-      <p className="text-[#2C2C2C]/80 text-sm leading-relaxed">{content || "Not assessed."}</p>
+      <p className="text-[#F3F4F4]/80 text-sm leading-relaxed">{content || "Not assessed."}</p>
     </div>
   );
 }
@@ -718,7 +718,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
     <article key={msg.id} className="flex gap-4 items-start message-enter">
       <div className="w-8 h-8 rounded-full bg-[#853953]/15 flex items-center justify-center shrink-0 mt-1">
         <span
-          className="material-symbols-outlined text-[#2C2C2C]"
+          className="material-symbols-outlined text-[#F3F4F4]"
           style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
         >
           analytics
@@ -731,7 +731,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
         <div className="space-y-3">
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
             <h2
-              className="text-[#2C2C2C] text-3xl font-bold leading-tight"
+              className="text-[#F3F4F4] text-3xl font-bold leading-tight"
               style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
             >
               {d.category}
@@ -740,7 +740,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${severityChipClass(d.severity)}`}>
                 {d.severity}
               </span>
-              <span className="flex items-center gap-1 text-emerald-700 text-xs font-semibold">
+              <span className="flex items-center gap-1 text-[#34D399] text-xs font-semibold">
                 <span
                   className="material-symbols-outlined"
                   style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}
@@ -753,13 +753,13 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
           </div>
 
           {/* Professional subtitle */}
-          <p className="text-[#2C2C2C]/60 text-sm">
+          <p className="text-[#F3F4F4]/60 text-sm">
             Assessment generated using the Disaster Intelligence Engine.
           </p>
 
           {/* Active model chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[#2C2C2C]/35 text-xs">Models used:</span>
+            <span className="text-[#F3F4F4]/35 text-xs">Models used:</span>
             {models.map((m) => (
               <span
                 key={m}
@@ -802,7 +802,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
         {/* ── Suggested queries (only when conversation is fresh) ── */}
         {chatLength <= 2 && disasterCtx && (
           <div className="pt-1 space-y-2">
-            <p className="text-[10px] text-[#2C2C2C]/55 uppercase tracking-widest font-semibold">
+            <p className="text-[10px] text-[#F3F4F4]/55 uppercase tracking-widest font-semibold">
               Suggested queries
             </p>
             <div className="flex flex-wrap gap-2">
@@ -810,7 +810,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
                 <button
                   key={q}
                   onClick={() => onSuggestedQuery(q)}
-                  className="atm-chip hover:brightness-95 transition-all text-[#2C2C2C] px-4 py-2 rounded-full text-xs border border-[#2C2C2C]/30 hover:border-[#2C2C2C]/60"
+                  className="atm-chip hover:bg-[#853953]/20 transition-all text-[#F3F4F4]/80 hover:text-[#F3F4F4] px-4 py-2 rounded-full text-xs border border-[#F3F4F4]/10 hover:border-[#853953]/40"
                 >
                   {q}
                 </button>
@@ -831,19 +831,19 @@ function SimilarEventsCard({ events }) {
   if (!events || events.length === 0) return null;
 
   const barColor = (sim) => {
-    if (sim >= 80) return "bg-emerald-500";
+    if (sim >= 80) return "bg-[#34D399]";
     if (sim >= 65) return "bg-[#853953]";
-    return "bg-[#2C2C2C]/20";
+    return "bg-[#F3F4F4]/15";
   };
 
   const simLabel = (sim) => {
-    if (sim >= 80) return "text-emerald-700";
+    if (sim >= 80) return "text-[#34D399]";
     if (sim >= 65) return "text-[#853953]";
-    return "text-[#2C2C2C]/40";
+    return "text-[#F3F4F4]/40";
   };
 
   return (
-    <div className="rounded-xl border border-[#2C2C2C]/15 bg-[#2C2C2C]/[0.02] p-4 space-y-3">
+    <div className="rounded-xl border border-[#F3F4F4]/9 bg-[#F3F4F4]/[0.02] p-4 space-y-3">
       <div className="flex items-center gap-2">
         <span
           className="material-symbols-outlined text-[#853953]"
@@ -851,7 +851,7 @@ function SimilarEventsCard({ events }) {
         >
           history
         </span>
-        <p className="text-[10px] text-[#2C2C2C]/55 uppercase tracking-widest font-semibold">
+        <p className="text-[10px] text-[#F3F4F4]/55 uppercase tracking-widest font-semibold">
           Similar Historical Events
         </p>
       </div>
@@ -860,7 +860,7 @@ function SimilarEventsCard({ events }) {
         {events.map((ev, i) => (
           <div
             key={i}
-            className="flex items-start gap-3 p-3 rounded-lg bg-[#2C2C2C]/[0.03] border border-[#2C2C2C]/10 hover:border-[#2C2C2C]/25 transition-colors"
+            className="flex items-start gap-3 p-3 rounded-lg bg-[#F3F4F4]/[0.03] border border-[#F3F4F4]/7 hover:border-[#F3F4F4]/11 transition-colors"
           >
             {/* Rank badge */}
             <span className="shrink-0 w-5 h-5 rounded-full bg-[#853953]/15 border border-[#853953]/30 flex items-center justify-center text-[#853953] text-[9px] font-bold mt-0.5">
@@ -870,23 +870,23 @@ function SimilarEventsCard({ events }) {
             {/* Event info */}
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-[#2C2C2C] text-sm font-semibold leading-tight">
+                <span className="text-[#F3F4F4] text-sm font-semibold leading-tight">
                   {ev.event}
                 </span>
-                <span className="text-[#2C2C2C]/40 text-xs">{ev.year}</span>
+                <span className="text-[#F3F4F4]/40 text-xs">{ev.year}</span>
               </div>
-              <p className="text-[#2C2C2C]/50 text-[11px] leading-snug">
+              <p className="text-[#F3F4F4]/50 text-[11px] leading-snug">
                 {ev.location}
               </p>
               {ev.description && (
-                <p className="text-[#2C2C2C]/35 text-[10px] leading-snug line-clamp-2">
+                <p className="text-[#F3F4F4]/35 text-[10px] leading-snug line-clamp-2">
                   {ev.description}
                 </p>
               )}
 
               {/* Similarity bar */}
               <div className="flex items-center gap-2 pt-1">
-                <div className="flex-1 h-1 rounded-full bg-[#2C2C2C]/8 overflow-hidden">
+                <div className="flex-1 h-1 rounded-full bg-[#F3F4F4]/6 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${barColor(ev.similarity)}`}
                     style={{ width: `${Math.min(ev.similarity, 100)}%` }}
@@ -901,7 +901,7 @@ function SimilarEventsCard({ events }) {
         ))}
       </div>
 
-      <p className="text-[9px] text-[#2C2C2C]/25 pt-1">
+      <p className="text-[9px] text-[#F3F4F4]/25 pt-1">
         Similarity computed via CLIP cosine distance against {events.length} indexed events.
       </p>
     </div>
@@ -927,18 +927,18 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
   }
 
   const SEV_COLOR = {
-    Critical: "text-white border-[#2C2C2C]/60 bg-[#2C2C2C]",
-    High:     "text-[#612D53] border-[#612D53]/40 bg-[#612D53]/12",
-    Moderate: "text-[#853953] border-[#853953]/35 bg-[#853953]/10",
-    Low:      "text-[#2C2C2C]/70 border-[#2C2C2C]/15 bg-[#853953]/6",
+    Critical: "text-[#000000] border-[#F3F4F4]/60 bg-[#F3F4F4]",
+    High:     "text-[#D4869F] border-[#853953]/45 bg-[#853953]/22",
+    Moderate: "text-[#C07090] border-[#853953]/28 bg-[#853953]/14",
+    Low:      "text-[#F3F4F4]/55 border-[#F3F4F4]/14 bg-[#F3F4F4]/6",
   };
-  const sevColor = SEV_COLOR[unifiedResult?.severity] ?? "text-[#2C2C2C]/60 border-[#2C2C2C]/12 bg-[#2C2C2C]/4";
+  const sevColor = SEV_COLOR[unifiedResult?.severity] ?? "text-[#F3F4F4]/55 border-[#F3F4F4]/12 bg-[#F3F4F4]/5";
 
   const StreamCard = () => {
     if (!fi) return null;
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-xl overflow-hidden border border-[#612D53]/30 bg-[#F3F4F4]">
+        <div className="rounded-xl overflow-hidden border border-[#612D53]/30 bg-[#161616]">
           {thumb ? (
             <img src={thumb} alt="Video thumbnail" className="w-full aspect-video object-cover" />
           ) : (
@@ -946,15 +946,15 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               <span className="material-symbols-outlined text-[#612D53] text-4xl">movie</span>
             </div>
           )}
-          <div className="px-3 py-2 bg-white">
-            <p className="text-[10px] text-[#2C2C2C]/45 uppercase tracking-wider font-semibold">
+          <div className="px-3 py-2 bg-[#0F0F0F]">
+            <p className="text-[10px] text-[#F3F4F4]/45 uppercase tracking-wider font-semibold">
               Thumbnail · 1 s seek
             </p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 space-y-2">
-          <h4 className="text-[#2C2C2C] text-xs font-semibold uppercase tracking-widest mb-3">
+        <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 space-y-2">
+          <h4 className="text-[#F3F4F4] text-xs font-semibold uppercase tracking-widest mb-3">
             Stream Properties
           </h4>
           {[
@@ -966,9 +966,9 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
             ["File size",    `${(fi.size_mb ?? 0).toFixed(1)} MB`],
             ["Total frames", fi.total_frames ? fi.total_frames.toLocaleString() : "—"],
           ].map(([k, v]) => (
-            <div key={k} className="flex justify-between items-center border-b border-[#2C2C2C]/10 pb-1.5 last:border-none last:pb-0">
-              <span className="text-[#2C2C2C]/55 text-xs">{k}</span>
-              <span className="text-[#2C2C2C]/80 text-xs font-semibold"
+            <div key={k} className="flex justify-between items-center border-b border-[#F3F4F4]/7 pb-1.5 last:border-none last:pb-0">
+              <span className="text-[#F3F4F4]/55 text-xs">{k}</span>
+              <span className="text-[#F3F4F4]/80 text-xs font-semibold"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}>{v}</span>
             </div>
           ))}
@@ -997,7 +997,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
           {/* Header */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-              <h2 className="text-[#2C2C2C] text-3xl font-bold leading-tight"
+              <h2 className="text-[#F3F4F4] text-3xl font-bold leading-tight"
                 style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                 {d.category}
               </h2>
@@ -1008,7 +1008,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-[#612D53]/10 text-[#612D53] border-[#612D53]/35">
                   Video · {framesAnalyzed} frames
                 </span>
-                <span className="flex items-center gap-1 text-emerald-700 text-xs font-semibold">
+                <span className="flex items-center gap-1 text-[#34D399] text-xs font-semibold">
                   <span className="material-symbols-outlined"
                     style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>
                     check_circle
@@ -1018,7 +1018,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               </div>
             </div>
             {d.visible_damage && (
-              <p className="text-[#2C2C2C]/70 text-[15px] leading-relaxed">{d.visible_damage}</p>
+              <p className="text-[#F3F4F4]/70 text-[15px] leading-relaxed">{d.visible_damage}</p>
             )}
           </div>
 
@@ -1032,11 +1032,11 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               ["Environmental Impact", d.environmental_impact],
               ["Recommendations",      d.recommendations],
             ].filter(([, v]) => v).map(([label, value]) => (
-              <div key={label} className="bg-[#F3F4F4] rounded-xl border border-[#2C2C2C]/15 p-4">
-                <p className="text-[#2C2C2C]/50 text-[10px] font-semibold uppercase tracking-widest mb-1.5">
+              <div key={label} className="bg-[#161616] rounded-xl border border-[#F3F4F4]/9 p-4">
+                <p className="text-[#F3F4F4]/50 text-[10px] font-semibold uppercase tracking-widest mb-1.5">
                   {label}
                 </p>
-                <p className="text-[#2C2C2C]/80 text-sm leading-relaxed">{value}</p>
+                <p className="text-[#F3F4F4]/80 text-sm leading-relaxed">{value}</p>
               </div>
             ))}
           </div>
@@ -1044,27 +1044,27 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
           {/* Similar historical events */}
           {similarEvents.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-[#2C2C2C]/60 text-[10px] font-semibold uppercase tracking-widest">
+              <h4 className="text-[#F3F4F4]/60 text-[10px] font-semibold uppercase tracking-widest">
                 Similar Historical Events
               </h4>
               <div className="space-y-2">
                 {similarEvents.slice(0, 3).map((ev, i) => (
                   <div key={i}
-                    className="bg-[#F3F4F4] rounded-xl border border-[#2C2C2C]/10 p-3 flex gap-3 items-start">
-                    <span className="text-[#2C2C2C]/30 text-xs font-bold shrink-0 pt-0.5">#{i + 1}</span>
+                    className="bg-[#161616] rounded-xl border border-[#F3F4F4]/7 p-3 flex gap-3 items-start">
+                    <span className="text-[#F3F4F4]/30 text-xs font-bold shrink-0 pt-0.5">#{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[#2C2C2C]/80 text-sm font-semibold">
+                      <p className="text-[#F3F4F4]/80 text-sm font-semibold">
                         {ev.event}{" "}
-                        <span className="text-[#2C2C2C]/40 font-normal">({ev.year})</span>
+                        <span className="text-[#F3F4F4]/40 font-normal">({ev.year})</span>
                       </p>
-                      <p className="text-[#2C2C2C]/50 text-xs">{ev.location}</p>
+                      <p className="text-[#F3F4F4]/50 text-xs">{ev.location}</p>
                       {ev.description && (
-                        <p className="text-[#2C2C2C]/50 text-xs mt-1 leading-relaxed">{ev.description}</p>
+                        <p className="text-[#F3F4F4]/50 text-xs mt-1 leading-relaxed">{ev.description}</p>
                       )}
                     </div>
                     <span className={`text-xs font-bold shrink-0 ${
-                      ev.similarity >= 80 ? "text-emerald-700" :
-                      ev.similarity >= 65 ? "text-[#853953]" : "text-[#2C2C2C]/40"
+                      ev.similarity >= 80 ? "text-[#34D399]" :
+                      ev.similarity >= 65 ? "text-[#853953]" : "text-[#F3F4F4]/40"
                     }`}>
                       {ev.similarity?.toFixed(1)}%
                     </span>
@@ -1076,7 +1076,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
 
           {/* Frame vote breakdown */}
           {Object.keys(votes).length > 0 && (
-            <p className="text-[#2C2C2C]/25 text-[9px]">
+            <p className="text-[#F3F4F4]/25 text-[9px]">
               Frame classification votes:{" "}
               {Object.entries(votes).map(([c, v]) => `${c} (${v})`).join(" · ")}
               {" · "}Best frame analyzed with CLIP + Qwen2-VL
@@ -1103,7 +1103,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
         {/* Header */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-            <h2 className="text-[#2C2C2C] text-3xl font-bold leading-tight"
+            <h2 className="text-[#F3F4F4] text-3xl font-bold leading-tight"
               style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
               Video Assessment
             </h2>
@@ -1111,7 +1111,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-[#612D53]/12 text-[#612D53] border-[#612D53]/40">
                 Metadata Only
               </span>
-              <span className="flex items-center gap-1 text-emerald-700 text-xs font-semibold">
+              <span className="flex items-center gap-1 text-[#34D399] text-xs font-semibold">
                 <span className="material-symbols-outlined"
                   style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>
                   check_circle
@@ -1120,14 +1120,14 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               </span>
             </div>
           </div>
-          <p className="text-[#2C2C2C]/70 text-[15px] leading-relaxed whitespace-pre-line">{an.summary}</p>
+          <p className="text-[#F3F4F4]/70 text-[15px] leading-relaxed whitespace-pre-line">{an.summary}</p>
         </div>
 
         {/* Thumbnail + stream properties */}
         <StreamCard />
 
         {/* Pending models */}
-        <div className="bg-[#F3F4F4] rounded-xl border border-[#612D53]/25 p-4 space-y-3">
+        <div className="bg-[#161616] rounded-xl border border-[#612D53]/25 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#612D53]" style={{ fontSize: "16px" }}>
               model_training
@@ -1136,16 +1136,16 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
               Video Intelligence Models — Pending Integration
             </h4>
           </div>
-          <p className="text-[#2C2C2C]/40 text-xs">{an.assessment_note}</p>
+          <p className="text-[#F3F4F4]/40 text-xs">{an.assessment_note}</p>
           <div className="space-y-0.5">
             {an.pending_models.map((pm) => (
-              <div key={pm.model} className="flex items-center gap-3 py-2 border-b border-[#2C2C2C]/8 last:border-none">
+              <div key={pm.model} className="flex items-center gap-3 py-2 border-b border-[#F3F4F4]/6 last:border-none">
                 <div className="w-2 h-2 rounded-full bg-[#612D53]/35 border border-[#612D53]/55 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[#612D53] text-xs font-semibold">{pm.model}</p>
-                  <p className="text-[#2C2C2C]/40 text-[11px]">{pm.description}</p>
+                  <p className="text-[#F3F4F4]/40 text-[11px]">{pm.description}</p>
                 </div>
-                <span className="text-[10px] text-[#612D53]/50 shrink-0"
+                <span className="hidden sm:inline text-[10px] text-[#612D53]/50 shrink-0"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                   {pm.endpoint}
                 </span>
@@ -1767,10 +1767,10 @@ export default function App() {
   // ── Shared top navigation ──────────────────────────────────────────────────
 
   const TopNav = (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[#F3F4F4]/95 backdrop-blur-md border-b border-[#2C2C2C]/20 shadow-sm">
-      <div className="flex justify-between items-center w-full px-12 py-4 max-w-[1200px] mx-auto">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-black/92 backdrop-blur-md border-b border-[#F3F4F4]/8">
+      <div className="flex justify-between items-center w-full px-3 sm:px-6 md:px-12 py-3.5 max-w-[1200px] mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#853953]/15 rounded-lg flex items-center justify-center border border-[#853953]/30">
+          <div className="w-8 h-8 bg-[#853953]/20 rounded-lg flex items-center justify-center border border-[#853953]/40 shadow-glow-sm">
             <span
               className="material-symbols-outlined text-[#853953] text-[18px]"
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -1778,24 +1778,29 @@ export default function App() {
               radar
             </span>
           </div>
-          <h1 className="text-[24px] font-semibold text-[#2C2C2C]" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-            Disaster Intelligence Assistant
-          </h1>
+          <div className="flex flex-col leading-none gap-0.5">
+            <h1 className="text-[15px] font-semibold text-[#F3F4F4] tracking-tight" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+              Disaster Intelligence
+            </h1>
+            <span className="hidden sm:inline text-[10px] text-[#F3F4F4]/30 uppercase tracking-[0.14em] font-medium" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              VLM · Analyzer Platform
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           {phase === "ready" && (
             <button
               onClick={resetToUpload}
-              className="text-xs font-semibold text-[#2C2C2C] hover:text-[#2C2C2C] border border-[#2C2C2C]/35 hover:border-[#853953]/50 rounded-lg px-3 py-1.5 transition-colors"
+              className="text-[11px] font-semibold text-[#F3F4F4]/65 hover:text-[#F3F4F4] border border-[#F3F4F4]/10 hover:border-[#853953]/45 rounded-lg px-3 py-1.5 transition-all hover:bg-[#853953]/8"
             >
-              ↩ New Analysis
+              ↩<span className="hidden sm:inline"> New Analysis</span>
             </button>
           )}
-          <button className="text-[#2C2C2C]/50 hover:text-[#2C2C2C] transition-colors p-2">
-            <span className="material-symbols-outlined">help</span>
+          <button className="hidden sm:flex text-[#F3F4F4]/30 hover:text-[#F3F4F4]/65 transition-colors p-2 rounded-lg hover:bg-[#F3F4F4]/5">
+            <span className="material-symbols-outlined" style={{ fontSize: "19px" }}>help_outline</span>
           </button>
-          <button className="text-[#2C2C2C]/50 hover:text-[#2C2C2C] transition-colors p-2">
-            <span className="material-symbols-outlined">settings</span>
+          <button className="hidden sm:flex text-[#F3F4F4]/30 hover:text-[#F3F4F4]/65 transition-colors p-2 rounded-lg hover:bg-[#F3F4F4]/5">
+            <span className="material-symbols-outlined" style={{ fontSize: "19px" }}>settings</span>
           </button>
         </div>
       </div>
@@ -1806,7 +1811,7 @@ export default function App() {
   // PHASE: upload
   // ---------------------------------------------------------------------------
 
-  if (showSplash) return <SplashScreen onComplete={() => setShowSplash(false)} />;
+  if (showSplash) return <IntroAnimation onComplete={() => setShowSplash(false)} />;
 
   if (phase === "upload") {
     return (
@@ -1835,7 +1840,7 @@ export default function App() {
                       radar
                     </span>
                   </div>
-                  <span className="text-[10px] font-medium text-[#2C2C2C]/30 uppercase tracking-widest">
+                  <span className="text-[10px] font-medium text-[#F3F4F4]/30 uppercase tracking-widest">
                     Disaster Intelligence
                   </span>
                 </div>
@@ -1848,23 +1853,23 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="greeting-enter flex flex-col gap-1">
-                    <h2 className="text-[#2C2C2C] text-[22px] font-semibold leading-tight">
+                    <h2 className="text-[#F3F4F4] text-[22px] font-semibold leading-tight">
                       {greeting}
                     </h2>
 
                     {userName !== null ? (
                       <div className="flex flex-col gap-0.5">
-                        <p className="text-[#2C2C2C]/55 text-[13px]">
+                        <p className="text-[#F3F4F4]/55 text-[13px]">
                           What would you like me to investigate today?
                         </p>
                         {memory.totalIncidents > 0 && (
                           <div className="greeting-enter-slow flex items-center gap-1.5 flex-wrap mt-1">
-                            <span className="text-[#2C2C2C]/25 text-[11px]">Recent:</span>
+                            <span className="text-[#F3F4F4]/25 text-[11px]">Recent:</span>
                             {memory.assessments.slice(0, 2).map((a) => (
                               <button
                                 key={a.id}
                                 onClick={() => handleRestoreAssessment(a)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-[#2C2C2C]/15 text-[#2C2C2C]/45 text-[11px] hover:border-[#853953]/35 hover:text-[#2C2C2C]/65 transition-all"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#0F0F0F] border border-[#F3F4F4]/9 text-[#F3F4F4]/45 text-[11px] hover:border-[#853953]/35 hover:text-[#F3F4F4]/65 transition-all"
                               >
                                 {a.eventType} · {formatTimeAgo(a.timestamp)}
                                 <span className="material-symbols-outlined" style={{ fontSize: "10px" }}>arrow_forward</span>
@@ -1873,7 +1878,7 @@ export default function App() {
                           </div>
                         )}
                         <p
-                          className="idle-status text-[10px] text-[#2C2C2C]/25 mt-0.5"
+                          className="idle-status text-[10px] text-[#F3F4F4]/25 mt-0.5"
                           style={{ opacity: idleStatusVisible ? 1 : 0 }}
                         >
                           {IDLE_STATUS_MESSAGES[idleStatusIdx]}
@@ -1881,7 +1886,7 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="greeting-enter-slow flex flex-col gap-2 mt-0.5">
-                        <p className="text-[#2C2C2C]/55 text-[13px]">What should I call you?</p>
+                        <p className="text-[#F3F4F4]/55 text-[13px]">What should I call you?</p>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
@@ -1891,7 +1896,7 @@ export default function App() {
                             placeholder="Your name or callsign"
                             maxLength={32}
                             autoFocus
-                            className="bg-[#F3F4F4] border border-[#2C2C2C]/20 rounded-lg px-3 py-1.5 text-[#2C2C2C] text-sm placeholder-[#2C2C2C]/20 outline-none focus:border-[#853953]/50 transition-colors w-44"
+                            className="bg-[#0F0F0F] border border-[#F3F4F4]/10 rounded-lg px-3 py-1.5 text-[#F3F4F4] text-sm placeholder-[#F3F4F4]/25 outline-none focus:border-[#853953]/50 focus:ring-1 focus:ring-[#853953]/20 transition-all w-44"
                           />
                           <button
                             onClick={() => handleSaveName(nameInput)}
@@ -1902,7 +1907,7 @@ export default function App() {
                           </button>
                           <button
                             onClick={() => handleSaveName("")}
-                            className="text-[#2C2C2C]/30 text-xs hover:text-[#2C2C2C]/50 transition-colors"
+                            className="text-[#F3F4F4]/30 text-xs hover:text-[#F3F4F4]/50 transition-colors"
                           >
                             skip
                           </button>
@@ -1927,7 +1932,7 @@ export default function App() {
                   onDragLeave={() => setIsDragging(false)}
                   className={`upload-dashed rounded-xl min-h-[96px] flex flex-col items-center justify-center p-3
                     cursor-pointer transition-all duration-300
-                    ${isDragging ? "upload-dashed-active bg-[#853953]/6 scale-[1.01]" : "bg-white hover:bg-[#F3F4F4]"}`}
+                    ${isDragging ? "upload-dashed-active bg-[#853953]/6 scale-[1.01]" : "bg-[#0F0F0F] hover:bg-[#161616]"}`}
                 >
                   <input
                     ref={fileInputRef}
@@ -1960,13 +1965,13 @@ export default function App() {
                         )}
                         <button
                           onClick={clearImage}
-                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#853953]/70 backdrop-blur-sm flex items-center justify-center hover:bg-[#612D53] transition-colors border border-[#2C2C2C]/35"
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#853953]/70 backdrop-blur-sm flex items-center justify-center hover:bg-[#612D53] transition-colors border border-[#F3F4F4]/14"
                           title="Remove file"
                         >
                           <span className="material-symbols-outlined text-white" style={{ fontSize: "13px" }}>close</span>
                         </button>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-[#2C2C2C]">
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-[#F3F4F4]">
                         {/* Mode badge */}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
                           fileMode === "video"
@@ -1978,13 +1983,13 @@ export default function App() {
                           </span>
                           {fileMode === "video" ? "Video" : "Image"}
                         </span>
-                        <span className="max-w-[180px] truncate">{file?.name}</span>
-                        <span className="text-[#2C2C2C]/40">·</span>
-                        <span className="text-[#2C2C2C]/55 shrink-0">{file ? (file.size / 1024 / 1024).toFixed(1) + " MB" : ""}</span>
-                        <span className="text-[#2C2C2C]/40">·</span>
+                        <span className="max-w-[120px] sm:max-w-[180px] truncate">{file?.name}</span>
+                        <span className="text-[#F3F4F4]/40">·</span>
+                        <span className="text-[#F3F4F4]/55 shrink-0">{file ? (file.size / 1024 / 1024).toFixed(1) + " MB" : ""}</span>
+                        <span className="text-[#F3F4F4]/40">·</span>
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="text-[#2C2C2C] hover:underline shrink-0"
+                          className="text-[#F3F4F4] hover:underline shrink-0"
                         >
                           replace
                         </button>
@@ -1993,19 +1998,19 @@ export default function App() {
                   ) : (
                     /* ── Empty state ── */
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-[#F3F4F4] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-[#161616] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shrink-0">
                         <span
-                          className="material-symbols-outlined text-[#2C2C2C] text-xl"
+                          className="material-symbols-outlined text-[#F3F4F4] text-xl"
                           style={{ fontVariationSettings: "'FILL' 0, 'wght' 200" }}
                         >
                           perm_media
                         </span>
                       </div>
                       <div className="text-left">
-                        <p className="text-[14px] font-medium text-[#2C2C2C]" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                        <p className="text-[14px] font-medium text-[#F3F4F4]" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                           Share imagery or footage to get started
                         </p>
-                        <p className="text-[#2C2C2C]/45 text-[12px]">
+                        <p className="text-[#F3F4F4]/45 text-[12px]">
                           Images (JPEG, PNG) or video (MP4, MOV, AVI, MKV)
                         </p>
                       </div>
@@ -2016,8 +2021,8 @@ export default function App() {
 
               {/* File error / validation message */}
               {fileError && (
-                <p className="text-red-600 text-sm flex items-center gap-2">
-                  <span className="material-symbols-outlined text-red-600" style={{ fontSize: "15px" }}>warning</span>
+                <p className="text-[#F87171] text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#F87171]" style={{ fontSize: "15px" }}>warning</span>
                   {fileError}
                 </p>
               )}
@@ -2025,13 +2030,13 @@ export default function App() {
               {/* Mode selector (image-only — video has no research mode) */}
               {fileMode === "image" && (
                 <div className="flex justify-center">
-                  <div className="flex items-center gap-0.5 bg-[#ECEDEF] rounded-xl p-1 border border-[#2C2C2C]/10">
+                  <div className="flex items-center gap-0.5 bg-[#0A0A0A] rounded-xl p-1 border border-[#F3F4F4]/7">
                     <button
                       onClick={() => setAnalysisMode("unified")}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         analysisMode === "unified"
                           ? "bg-[#853953] text-white"
-                          : "text-[#2C2C2C]/45 hover:text-[#2C2C2C]/75"
+                          : "text-[#F3F4F4]/45 hover:text-[#F3F4F4]/75"
                       }`}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
@@ -2041,8 +2046,8 @@ export default function App() {
                       onClick={() => setAnalysisMode("research")}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         analysisMode === "research"
-                          ? "bg-white text-[#2C2C2C] border border-[#2C2C2C]/20"
-                          : "text-[#2C2C2C]/45 hover:text-[#2C2C2C]/75"
+                          ? "bg-[#0F0F0F] text-[#F3F4F4] border border-[#F3F4F4]/10"
+                          : "text-[#F3F4F4]/45 hover:text-[#F3F4F4]/75"
                       }`}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>biotech</span>
@@ -2054,14 +2059,14 @@ export default function App() {
 
               {/* Research Mode notice */}
               {fileMode === "image" && analysisMode === "research" && (
-                <div className="flex items-start gap-2.5 bg-[#F3F4F4] border border-[#853953]/30 rounded-xl px-4 py-3">
+                <div className="flex items-start gap-2.5 bg-[#161616] border border-[#853953]/30 rounded-xl px-4 py-3">
                   <span
                     className="material-symbols-outlined text-[#853953] shrink-0 mt-0.5"
                     style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
                   >
                     schedule
                   </span>
-                  <p className="text-[#2C2C2C]/75 text-xs leading-relaxed">
+                  <p className="text-[#F3F4F4]/75 text-xs leading-relaxed">
                     <span className="text-[#853953] font-semibold">Research Mode</span> performs deeper multi-model analysis and may take 1–2 minutes.
                   </p>
                 </div>
@@ -2073,8 +2078,8 @@ export default function App() {
                   onClick={handleAnalyze}
                   className={`px-8 py-2.5 font-semibold text-sm rounded-xl shadow-lg flex items-center gap-2 transition-all duration-200
                     ${fileError && !file
-                      ? "bg-red-500/20 text-red-600 border border-red-500/40"
-                      : "bg-[#853953] text-white font-bold hover:bg-[#612D53] hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"}`}
+                      ? "bg-[#F87171]/20 text-[#F87171] border border-[#F87171]/40"
+                      : "bg-[#853953] text-white font-bold hover:bg-[#612D53] hover:scale-[1.02] active:scale-[0.98] shadow-glow-md hover:shadow-glow-lg"}`}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
                     {fileMode === "video" ? "videocam" : "send"}
@@ -2085,7 +2090,7 @@ export default function App() {
                       ? "Generate Report"
                       : "Run All Models"}
                 </button>
-                <p className="text-[12px] text-[#2C2C2C]/50 flex items-center gap-1">
+                <p className="text-[12px] text-[#F3F4F4]/50 flex items-center gap-1">
                   <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>auto_awesome</span>
                   {fileMode === "video"
                     ? "Extract stream metadata · generate thumbnail"
@@ -2098,7 +2103,7 @@ export default function App() {
               {/* Pre-upload conversation hints */}
               {greetingVisible && (
                 <div className="greeting-enter-late flex flex-col gap-1">
-                  <p className="text-[9px] text-[#2C2C2C]/25 uppercase tracking-widest font-semibold">
+                  <p className="text-[9px] text-[#F3F4F4]/25 uppercase tracking-widest font-semibold">
                     After analysis
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -2109,7 +2114,7 @@ export default function App() {
                     ].map((q) => (
                       <span
                         key={q}
-                        className="px-2 py-0.5 rounded-full atm-chip border border-[#2C2C2C]/12 text-[11px] text-[#2C2C2C]/35 select-none"
+                        className="px-2 py-0.5 rounded-full atm-chip border border-[#F3F4F4]/7 text-[11px] text-[#F3F4F4]/35 select-none"
                       >
                         {q}
                       </span>
@@ -2142,7 +2147,7 @@ export default function App() {
 
             {/* File context strip */}
             {previewUrl && (
-              <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
+              <div className="flex items-center gap-4 bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
                 {fileMode === "video" ? (
                   <div className="w-20 h-16 rounded-xl shrink-0 bg-[#612D53]/12 border border-[#612D53]/30 flex items-center justify-center">
                     <span className="material-symbols-outlined text-[#612D53] text-2xl">videocam</span>
@@ -2151,7 +2156,7 @@ export default function App() {
                   <img src={previewUrl} alt="Analyzing" className="w-20 h-16 rounded-xl object-cover shrink-0" />
                 )}
                 <div>
-                  <p className="text-[#2C2C2C] font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                  <p className="text-[#F3F4F4] font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                     {analysisError
                       ? "Analysis failed"
                       : fileMode === "video"
@@ -2160,7 +2165,7 @@ export default function App() {
                           ? "Generating disaster intelligence report..."
                           : "Running multi-model analysis..."}
                   </p>
-                  <p className="text-[#2C2C2C] text-sm mt-0.5">
+                  <p className="text-[#F3F4F4] text-sm mt-0.5">
                     {analysisError
                       ? "Returning in 5 seconds"
                       : fileMode === "video"
@@ -2175,33 +2180,33 @@ export default function App() {
 
             {/* Error banner */}
             {analysisError && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                <span className="material-symbols-outlined text-red-600 shrink-0 mt-0.5">wifi_off</span>
-                <p className="text-red-600 text-sm leading-relaxed">{analysisError}</p>
+              <div className="bg-[#F87171]/10 border border-[#F87171]/30 rounded-xl p-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-[#F87171] shrink-0 mt-0.5">wifi_off</span>
+                <p className="text-[#F87171] text-sm leading-relaxed">{analysisError}</p>
               </div>
             )}
 
             {/* Progress panel — video / unified / research */}
             {fileMode === "video" ? (
-              <div className="bg-white p-5 rounded-xl border border-[#612D53]/25 shadow-sm space-y-4">
+              <div className="bg-[#0F0F0F] p-5 rounded-xl border border-[#612D53]/25 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-[#2C2C2C] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                  <p className="text-[#F3F4F4] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                     {analysisError ? "Analysis stopped" : "Extracting video metadata"}
                   </p>
                   <span className="text-[#612D53] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                     {modelStatus.video === "complete" ? "1 / 1" : "0 / 1"}
                   </span>
                 </div>
-                <div className="h-1.5 bg-[#F3F4F4] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[#F3F4F4]/8 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
-                      modelStatus.video === "complete" ? "bg-emerald-400 w-full" :
-                      modelStatus.video === "failed"   ? "bg-red-400 w-full" :
+                      modelStatus.video === "complete" ? "bg-[#34D399] w-full" :
+                      modelStatus.video === "failed"   ? "bg-[#F87171] w-full" :
                                                          "bg-[#612D53] animate-pulse w-2/3"
                     }`}
                   />
                 </div>
-                <p className="text-[#2C2C2C]/60 text-xs">
+                <p className="text-[#F3F4F4]/60 text-xs">
                   {modelStatus.video === "running"   ? "Running ffprobe · extracting thumbnail frame..." :
                    modelStatus.video === "complete"  ? "Stream data extracted — preparing assessment..." :
                    modelStatus.video === "failed"    ? "Analysis failed" :
@@ -2210,11 +2215,11 @@ export default function App() {
               </div>
             ) : analysisMode === "unified" ? (
               /* ── Unified mode: single progress bar, no model names ── */
-              <div className="bg-white p-5 rounded-xl border border-[#853953]/25 shadow-sm space-y-4">
-                <p className="text-[#2C2C2C] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+              <div className="bg-[#0F0F0F] p-5 rounded-xl border border-[#853953]/25 shadow-sm space-y-4">
+                <p className="text-[#F3F4F4] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                   {analysisError ? "Analysis stopped" : "Generating Disaster Intelligence Report"}
                 </p>
-                <div className="h-1.5 bg-[#F3F4F4] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[#F3F4F4]/8 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-[#853953] rounded-full transition-all duration-700 ease-out"
                     style={{
@@ -2223,7 +2228,7 @@ export default function App() {
                     }}
                   />
                 </div>
-                <p className="text-[#2C2C2C]/60 text-xs">
+                <p className="text-[#F3F4F4]/60 text-xs">
                   {analysisError                   ? "Analysis failed"              :
                    modelStatus.clip === "complete" ? "Compiling final report..."    :
                    modelStatus.clip === "running"  ? "Examining the scene..."       :
@@ -2232,17 +2237,17 @@ export default function App() {
               </div>
             ) : (
               /* ── Research mode: 4-model progress ── */
-              <div className="bg-white p-5 rounded-xl border border-[#2C2C2C]/20 shadow-sm space-y-4">
+              <div className="bg-[#0F0F0F] p-5 rounded-xl border border-[#F3F4F4]/10 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-[#2C2C2C] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                  <p className="text-[#F3F4F4] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                     {analysisError ? "Analysis stopped" : "Running multi-perspective analysis"}
                   </p>
-                  <span className="text-[#2C2C2C] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span className="text-[#F3F4F4] text-xs font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                     {Object.values(modelStatus).filter((s) => s === "complete" || s === "failed").length} / {MODELS.length}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  <div className="h-1.5 bg-[#F3F4F4] rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[#F3F4F4]/8 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#853953] rounded-full transition-all duration-500 ease-out"
                       style={{
@@ -2257,17 +2262,17 @@ export default function App() {
                         <div
                           key={m.key}
                           className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                            s === "complete" ? "bg-emerald-400/80" :
-                            s === "failed"   ? "bg-red-400/60"     :
+                            s === "complete" ? "bg-[#34D399]/80" :
+                            s === "failed"   ? "bg-[#F87171]/60"     :
                             s === "running"  ? "bg-[#853953] animate-pulse" :
-                                              "bg-[#2C2C2C]/10"
+                                              "bg-[#F3F4F4]/8"
                           }`}
                         />
                       );
                     })}
                   </div>
                 </div>
-                <p className="text-[#2C2C2C]/60 text-xs">
+                <p className="text-[#F3F4F4]/60 text-xs">
                   {Object.values(modelStatus).some((s) => s === "running")
                     ? "Examining scene details..."
                     : Object.values(modelStatus).every((s) => s === "complete" || s === "failed")
@@ -2279,11 +2284,11 @@ export default function App() {
 
             {/* Analysis timeline */}
             {timeline.length > 0 && (
-              <div className="bg-[#F3F4F4] atm-surface2 rounded-xl border border-[#2C2C2C]/20 p-4 space-y-2">
+              <div className="bg-[#0A0A0A] atm-surface2 rounded-xl border border-[#F3F4F4]/10 p-4 space-y-2">
                 {timeline.map((event) => (
-                  <div key={event.id} className="flex items-center gap-2 text-xs text-[#2C2C2C]/70 timeline-enter">
+                  <div key={event.id} className="flex items-center gap-2 text-xs text-[#F3F4F4]/70 timeline-enter">
                     <span
-                      className="material-symbols-outlined text-emerald-700/80 shrink-0"
+                      className="material-symbols-outlined text-[#34D399]/80 shrink-0"
                       style={{ fontSize: "12px", fontVariationSettings: "'FILL' 1" }}
                     >
                       check_circle
@@ -2292,7 +2297,7 @@ export default function App() {
                   </div>
                 ))}
                 {!analysisError && !allDone && (
-                  <div className="flex items-center gap-2 text-xs text-[#2C2C2C]/55">
+                  <div className="flex items-center gap-2 text-xs text-[#F3F4F4]/55">
                     <div className="w-3 h-3 shrink-0 flex items-center justify-center">
                       <div className="w-2 h-2 rounded-full bg-[#853953]/50 animate-pulse" />
                     </div>
@@ -2300,7 +2305,7 @@ export default function App() {
                   </div>
                 )}
                 {!analysisError && allDone && (
-                  <div className="flex items-center gap-2 text-xs text-[#2C2C2C]/55">
+                  <div className="flex items-center gap-2 text-xs text-[#F3F4F4]/55">
                     <div className="w-3 h-3 shrink-0 flex items-center justify-center">
                       <div className="w-2 h-2 rounded-full bg-[#853953]/50 animate-pulse" />
                     </div>
@@ -2332,10 +2337,10 @@ export default function App() {
       <div className="flex-1 pt-20 flex overflow-hidden relative">
 
         {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-        <aside className="hidden md:flex fixed left-0 top-20 bottom-0 w-[240px] bg-white atm-surface border-r border-[#2C2C2C]/30 p-4 flex-col gap-4 z-40">
+        <aside className="hidden md:flex fixed left-0 top-20 bottom-0 w-[240px] bg-[#0F0F0F] atm-surface border-r border-[#F3F4F4]/12 p-4 flex-col gap-4 z-40">
 
           <h3
-            className="text-xs font-semibold text-[#2C2C2C] uppercase tracking-widest"
+            className="text-xs font-semibold text-[#F3F4F4] uppercase tracking-widest"
             style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
           >
             Reference Context
@@ -2346,7 +2351,7 @@ export default function App() {
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
                 analysisMode === "unified"
                   ? "bg-[#853953]/15 border-[#853953]/30 text-[#853953]"
-                  : "bg-white border-[#2C2C2C]/20 text-[#2C2C2C]/60"
+                  : "bg-[#0F0F0F] border-[#F3F4F4]/10 text-[#F3F4F4]/60"
               }`}>
                 {analysisMode === "unified" ? "Unified" : "Research"}
               </span>
@@ -2354,11 +2359,11 @@ export default function App() {
           </div>
 
           {/* Scene image / video */}
-          <div className="rounded-xl overflow-hidden border border-[#2C2C2C]/35 relative group">
+          <div className="rounded-xl overflow-hidden border border-[#F3F4F4]/14 relative group">
             {previewUrl ? (
               <>
                 {fileMode === "video" ? (
-                  <div className="w-full aspect-video bg-[#F3F4F4] flex items-center justify-center">
+                  <div className="w-full aspect-video bg-[#161616] flex items-center justify-center">
                     {videoAnalysis?.thumbnail_b64 ? (
                       <img
                         src={videoAnalysis.thumbnail_b64}
@@ -2377,29 +2382,29 @@ export default function App() {
                   />
                 )}
                 <div
-                  className="absolute bottom-2 left-2 bg-[#853953]/70 backdrop-blur-sm px-2 py-1 rounded text-[10px] uppercase text-[#2C2C2C]"
+                  className="absolute bottom-2 left-2 bg-[#853953]/70 backdrop-blur-sm px-2 py-1 rounded text-[10px] uppercase text-[#F3F4F4]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {fileMode === "video" ? "VIDEO" : `REF_ID: ${disasterCtx?.eventType?.slice(0, 3).toUpperCase() ?? "EVT"}`}
                 </div>
               </>
             ) : (
-              <div className="w-full aspect-video bg-[#F3F4F4] atm-surface2 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[#2C2C2C] text-4xl">image</span>
+              <div className="w-full aspect-video bg-[#0A0A0A] atm-surface2 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[#F3F4F4] text-4xl">image</span>
               </div>
             )}
           </div>
 
           {/* Disaster metrics */}
           <div className="space-y-1.5">
-            <div className="flex justify-between items-center border-b border-[#2C2C2C]/20 pb-1.5">
-              <span className="text-[#2C2C2C]/70 text-xs">Type</span>
-              <span className="text-[#2C2C2C] text-xs font-semibold truncate max-w-[110px] text-right" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+            <div className="flex justify-between items-center border-b border-[#F3F4F4]/10 pb-1.5">
+              <span className="text-[#F3F4F4]/70 text-xs">Type</span>
+              <span className="text-[#F3F4F4] text-xs font-semibold truncate max-w-[110px] text-right" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
                 {disasterCtx?.eventType ?? "—"}
               </span>
             </div>
-            <div className="flex justify-between items-center border-b border-[#2C2C2C]/20 pb-1.5">
-              <span className="text-[#2C2C2C]/70 text-xs">Severity</span>
+            <div className="flex justify-between items-center border-b border-[#F3F4F4]/10 pb-1.5">
+              <span className="text-[#F3F4F4]/70 text-xs">Severity</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${severityChipClass(disasterCtx?.severity)}`}>
                 {disasterCtx?.severity ?? "—"}
               </span>
@@ -2409,6 +2414,24 @@ export default function App() {
 
         {/* ── Main chat area ────────────────────────────────────────────────── */}
         <section className="flex-1 flex flex-col md:ml-[240px] chat-container overflow-y-auto pb-32">
+          {/* Mobile-only sticky context bar — shows disaster type and severity since sidebar is hidden */}
+          <div className="md:hidden sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur-sm border-b border-[#F3F4F4]/8 px-4 py-2 flex items-center gap-3 shrink-0">
+            {previewUrl && (
+              fileMode === "video" ? (
+                <div className="w-7 h-7 rounded bg-[#161616] flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[#612D53]" style={{ fontSize: "14px" }}>videocam</span>
+                </div>
+              ) : (
+                <img src={previewUrl} alt="scene" className="w-7 h-7 rounded object-cover shrink-0" />
+              )
+            )}
+            <span className="text-[#F3F4F4] text-sm font-semibold truncate flex-1" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+              {disasterCtx?.eventType ?? "—"}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border shrink-0 ${severityChipClass(disasterCtx?.severity)}`}>
+              {disasterCtx?.severity ?? "—"}
+            </span>
+          </div>
           <div className="w-full max-w-[800px] mx-auto px-4 md:px-6 py-8 flex flex-col gap-8">
 
             {chatHistory.map((msg, msgIdx) => {
@@ -2438,7 +2461,7 @@ export default function App() {
                   <article key={msg.id} className="flex gap-4 items-start message-enter">
                     <div className="w-8 h-8 rounded-full bg-[#853953]/15 flex items-center justify-center shrink-0 mt-1">
                       <span
-                        className="material-symbols-outlined text-[#2C2C2C]"
+                        className="material-symbols-outlined text-[#F3F4F4]"
                         style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                       >
                         analytics
@@ -2451,7 +2474,7 @@ export default function App() {
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
                           <h2
-                            className="text-[#2C2C2C] text-3xl font-bold leading-tight"
+                            className="text-[#F3F4F4] text-3xl font-bold leading-tight"
                             style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
                           >
                             {disasterCtx.eventType}
@@ -2460,7 +2483,7 @@ export default function App() {
                             <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${severityChipClass(disasterCtx.severity)}`}>
                               {disasterCtx.severity}
                             </span>
-                            <span className="flex items-center gap-1 text-emerald-700 text-xs font-semibold">
+                            <span className="flex items-center gap-1 text-[#34D399] text-xs font-semibold">
                               <span
                                 className="material-symbols-outlined"
                                 style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}
@@ -2472,21 +2495,21 @@ export default function App() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <p className="text-[#2C2C2C]/60 text-sm">
+                          <p className="text-[#F3F4F4]/60 text-sm">
                             Disaster indicators detected and assessed successfully.
                           </p>
                           {atmosphereLabel && <span className="atm-label-badge">{atmosphereLabel}</span>}
                         </div>
-                        <p className="text-[#2C2C2C]/80 text-[17px] leading-[28px]">{msg.content}</p>
+                        <p className="text-[#F3F4F4]/80 text-[17px] leading-[28px]">{msg.content}</p>
                       </div>
 
                       {/* Row 1: Risks | Actions */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
-                          <h4 className="text-[#2C2C2C] text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
+                          <h4 className="text-[#F3F4F4] text-xs font-semibold uppercase tracking-widest mb-3">
                             Potential Risks
                           </h4>
-                          <ul className="text-[#2C2C2C]/80 text-sm space-y-2">
+                          <ul className="text-[#F3F4F4]/80 text-sm space-y-2">
                             {disasterCtx.impacts.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
                                 <span className="w-1.5 h-1.5 bg-[#853953] rounded-full mt-[5px] shrink-0" />
@@ -2495,11 +2518,11 @@ export default function App() {
                             ))}
                           </ul>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
-                          <h4 className="text-[#2C2C2C] text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
+                          <h4 className="text-[#F3F4F4] text-xs font-semibold uppercase tracking-widest mb-3">
                             Recommended Actions
                           </h4>
-                          <ul className="text-[#2C2C2C]/80 text-sm space-y-2">
+                          <ul className="text-[#F3F4F4]/80 text-sm space-y-2">
                             {disasterCtx.actions.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
                                 <span className="w-1.5 h-1.5 bg-[#853953] rounded-full mt-[5px] shrink-0" />
@@ -2512,11 +2535,11 @@ export default function App() {
 
                       {/* Row 2: Infrastructure | Human Impact */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
-                          <h4 className="text-[#2C2C2C]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
+                          <h4 className="text-[#F3F4F4]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                             Affected Infrastructure
                           </h4>
-                          <ul className="text-[#2C2C2C]/80 text-sm space-y-2">
+                          <ul className="text-[#F3F4F4]/80 text-sm space-y-2">
                             {disasterCtx.infrastructure.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
                                 <span className="w-1.5 h-1.5 bg-[#853953]/25 rounded-full mt-[5px] shrink-0" />
@@ -2525,11 +2548,11 @@ export default function App() {
                             ))}
                           </ul>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
-                          <h4 className="text-[#2C2C2C]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                        <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
+                          <h4 className="text-[#F3F4F4]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                             Human Impact
                           </h4>
-                          <ul className="text-[#2C2C2C]/80 text-sm space-y-2">
+                          <ul className="text-[#F3F4F4]/80 text-sm space-y-2">
                             {disasterCtx.humanImpact.map((item, i) => (
                               <li key={i} className="flex items-start gap-2">
                                 <span className="w-1.5 h-1.5 bg-[#853953]/25 rounded-full mt-[5px] shrink-0" />
@@ -2541,11 +2564,11 @@ export default function App() {
                       </div>
 
                       {/* Row 3: Environmental Impact — full width */}
-                      <div className="bg-white p-4 rounded-xl border border-[#2C2C2C]/20 shadow-sm">
-                        <h4 className="text-[#2C2C2C]/70 text-xs font-semibold uppercase tracking-widest mb-3">
+                      <div className="bg-[#0F0F0F] p-4 rounded-xl border border-[#F3F4F4]/10 shadow-sm">
+                        <h4 className="text-[#F3F4F4]/70 text-xs font-semibold uppercase tracking-widest mb-3">
                           Environmental Impact
                         </h4>
-                        <ul className="text-[#2C2C2C]/80 text-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                        <ul className="text-[#F3F4F4]/80 text-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                           {disasterCtx.environmentalImpact.map((item, i) => (
                             <li key={i} className="flex items-start gap-2">
                               <span className="w-1.5 h-1.5 bg-[#853953]/25 rounded-full mt-[5px] shrink-0" />
@@ -2558,7 +2581,7 @@ export default function App() {
                       {/* Suggested operational queries */}
                       {chatHistory.length <= 2 && (
                         <div className="pt-2 space-y-2">
-                          <p className="text-[10px] text-[#2C2C2C]/55 uppercase tracking-widest font-semibold">
+                          <p className="text-[10px] text-[#F3F4F4]/55 uppercase tracking-widest font-semibold">
                             Suggested queries
                           </p>
                           <div className="flex flex-wrap gap-2">
@@ -2566,7 +2589,7 @@ export default function App() {
                               <button
                                 key={q}
                                 onClick={() => handleChat(q)}
-                                className="atm-chip hover:brightness-95 transition-all text-[#2C2C2C] px-4 py-2 rounded-full text-xs border border-[#2C2C2C]/30 hover:border-[#2C2C2C]/60"
+                                className="atm-chip hover:bg-[#853953]/20 transition-all text-[#F3F4F4]/80 hover:text-[#F3F4F4] px-4 py-2 rounded-full text-xs border border-[#F3F4F4]/10 hover:border-[#853953]/40"
                               >
                                 {q}
                               </button>
@@ -2576,7 +2599,7 @@ export default function App() {
                                 onClick={() => handleChat(
                                   `How does this ${disasterCtx.eventType.toLowerCase()} compare to the ${INITIAL_MEMORY.assessments[0].eventType.toLowerCase()} incident from ${formatTimeAgo(INITIAL_MEMORY.assessments[0].timestamp)}?`
                                 )}
-                                className="bg-white hover:bg-[#612D53] hover:text-white transition-all text-[#2C2C2C] px-4 py-2 rounded-full text-xs border border-[#2C2C2C]/20 hover:border-[#612D53]"
+                                className="bg-transparent hover:bg-[#612D53]/80 hover:text-white transition-all text-[#F3F4F4]/70 px-4 py-2 rounded-full text-xs border border-[#F3F4F4]/10 hover:border-[#612D53]"
                               >
                                 Compare with previous {INITIAL_MEMORY.assessments[0].eventType.toLowerCase()} incident
                               </button>
@@ -2597,10 +2620,10 @@ export default function App() {
                 return (
                   <div key={msg.id} className="flex justify-end message-enter">
                     <div className="max-w-[75%]">
-                      <div className="px-4 py-3 rounded-2xl text-[#2C2C2C] text-sm leading-relaxed border border-[#853953]/20" style={{ background: 'rgba(133,57,83,0.07)' }}>
+                      <div className="px-4 py-3 rounded-2xl text-[#F3F4F4] text-sm leading-relaxed border border-[#853953]/30" style={{ background: 'rgba(133,57,83,0.16)' }}>
                         {msg.content}
                       </div>
-                      <p className="text-xs text-[#2C2C2C]/40 mt-1 text-right">{msg.time}</p>
+                      <p className="text-xs text-[#F3F4F4]/40 mt-1 text-right">{msg.time}</p>
                     </div>
                   </div>
                 );
@@ -2612,18 +2635,18 @@ export default function App() {
                 <article key={msg.id} className="flex gap-4 items-start group message-enter">
                   <div className="w-8 h-8 rounded-full bg-[#853953]/15 flex items-center justify-center shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-[#2C2C2C]"
+                      className="material-symbols-outlined text-[#F3F4F4]"
                       style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                     >
                       analytics
                     </span>
                   </div>
-                  <div className="flex-1 bg-white atm-bubble border border-[#2C2C2C]/20 rounded-2xl rounded-tl-sm px-5 py-4">
-                    <p className="text-[#2C2C2C] text-[16px] leading-[26px] whitespace-pre-line">{msg.content}</p>
+                  <div className="flex-1 bg-[#0F0F0F] atm-bubble border border-[#F3F4F4]/10 rounded-2xl rounded-tl-sm px-5 py-4">
+                    <p className="text-[#F3F4F4] text-[16px] leading-[26px] whitespace-pre-line break-words">{msg.content}</p>
                     <div className="flex items-center gap-3 mt-3 flex-wrap">
-                      <p className="text-xs text-[#2C2C2C]/50">{msg.time}</p>
+                      <p className="text-xs text-[#F3F4F4]/50">{msg.time}</p>
                       {msg.isFallback && (
-                        <p className="text-xs text-[#2C2C2C]/40 flex items-center gap-1">
+                        <p className="text-xs text-[#F3F4F4]/40 flex items-center gap-1">
                           <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>wifi_off</span>
                           Local response — backend unavailable
                         </p>
@@ -2631,19 +2654,19 @@ export default function App() {
                       {/* Copy button */}
                       <button
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#2C2C2C] hover:text-[#2C2C2C] flex items-center gap-1"
+                        className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#F3F4F4] hover:text-[#F3F4F4] flex items-center gap-1"
                         title="Copy response"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>
                           {copiedId === msg.id ? "check" : "content_copy"}
                         </span>
-                        {copiedId === msg.id && <span className="text-xs text-emerald-700">Copied</span>}
+                        {copiedId === msg.id && <span className="text-xs text-[#34D399]">Copied</span>}
                       </button>
                       {/* Regenerate button — only on last assistant message */}
                       {isLastAsst && !isTyping && (
                         <button
                           onClick={handleRegenerate}
-                          className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#2C2C2C] hover:text-[#2C2C2C] flex items-center gap-1"
+                          className="opacity-40 group-hover:opacity-100 transition-opacity duration-150 text-[#F3F4F4] hover:text-[#F3F4F4] flex items-center gap-1"
                           title="Regenerate response"
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: "13px" }}>refresh</span>
@@ -2661,13 +2684,13 @@ export default function App() {
               <article className="flex gap-4 items-start message-enter">
                 <div className="w-8 h-8 rounded-full bg-[#853953]/15 flex items-center justify-center shrink-0 mt-1">
                   <span
-                    className="material-symbols-outlined text-[#2C2C2C]"
+                    className="material-symbols-outlined text-[#F3F4F4]"
                     style={{ fontSize: "18px", fontVariationSettings: "'FILL' 1" }}
                   >
                     analytics
                   </span>
                 </div>
-                <div className="bg-white atm-bubble border border-[#2C2C2C]/20 rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-1.5">
+                <div className="bg-[#0F0F0F] atm-bubble border border-[#F3F4F4]/10 rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-1.5">
                   {[0, 150, 300].map((d) => (
                     <span
                       key={d}
@@ -2689,8 +2712,8 @@ export default function App() {
         className="fixed bottom-0 left-0 right-0 md:left-[240px] flex justify-center px-4 md:px-6 pt-4 z-50"
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="w-full max-w-[800px] bg-white atm-surface shadow-xl rounded-full border border-[#2C2C2C]/30 flex items-center px-4 md:px-6 py-2 focus-within:ring-2 focus-within:ring-[#853953]/20 transition-all">
-          <button className="text-[#2C2C2C]/55 hover:text-[#2C2C2C] p-2 transition-colors hidden sm:flex">
+        <div className="w-full max-w-[800px] bg-[#0C0C0C] atm-surface shadow-input rounded-full border border-[#F3F4F4]/10 flex items-center px-4 md:px-6 py-2 focus-within:ring-2 focus-within:ring-[#853953]/30 transition-all">
+          <button className="text-[#F3F4F4]/55 hover:text-[#F3F4F4] p-2 transition-colors hidden sm:flex">
             <span className="material-symbols-outlined">attachment</span>
           </button>
           <input
@@ -2701,10 +2724,10 @@ export default function App() {
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
             placeholder="Ask me anything about this incident…"
             disabled={isTyping}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-[#2C2C2C] placeholder-[#2C2C2C]/35 px-3 md:px-4 py-2 text-sm outline-none disabled:cursor-not-allowed"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-[#F3F4F4] placeholder-[#F3F4F4]/25 px-3 md:px-4 py-2 text-sm outline-none disabled:cursor-not-allowed"
           />
           <div className="flex items-center gap-1 md:gap-2">
-            <button className="text-[#2C2C2C]/55 hover:text-[#2C2C2C] p-2 transition-colors hidden sm:flex">
+            <button className="text-[#F3F4F4]/55 hover:text-[#F3F4F4] p-2 transition-colors hidden sm:flex">
               <span className="material-symbols-outlined">mic</span>
             </button>
             <button

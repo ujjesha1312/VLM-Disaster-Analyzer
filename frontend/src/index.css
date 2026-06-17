@@ -2,68 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Atmosphere CSS variable defaults ─────────────────────────────────────── */
+/* ── Atmosphere CSS variable defaults (dark theme) ───────────────────────── */
 :root {
-  --atm-bg:       #F3F4F4;
-  --atm-surface:  #FFFFFF;
-  --atm-surface2: #ECEDEF;
-  --atm-bubble:   rgba(133,57,83,0.06);
-  --atm-chip:     rgba(133,57,83,0.10);
+  --atm-bg:       #000000;
+  --atm-surface:  #0F0F0F;
+  --atm-surface2: #161616;
+  --atm-bubble:   rgba(133,57,83,0.10);
+  --atm-chip:     rgba(133,57,83,0.14);
   --atm-primary:  #853953;
   --atm-accent:   #612D53;
-  --atm-muted:    rgba(44,44,44,0.45);
-  --atm-glow-1:   rgba(133,57,83,0.06);
-  --atm-glow-2:   rgba(97,45,83,0.04);
+  --atm-muted:    rgba(243,244,244,0.45);
+  --atm-glow-1:   rgba(133,57,83,0.22);
+  --atm-glow-2:   rgba(97,45,83,0.14);
 }
 
-/* ── Base ──────────────────────────────────────────────────────────────────── */
+/* ── Base ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   background-color: var(--atm-bg);
-  color: #2C2C2C;
+  color: #F3F4F4;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ── Material Symbols ──────────────────────────────────────────────────────── */
+/* ── Material Symbols ────────────────────────────────────────────────────── */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   display: inline-block;
   vertical-align: middle;
 }
 
-/* ── Upload dashed border ──────────────────────────────────────────────────── */
+/* ── Upload dashed border ────────────────────────────────────────────────── */
 .upload-dashed {
   background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23853953' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed:hover {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%232C2C2C' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23F3F4F4' stroke-width='1.5' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 .upload-dashed-active {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%232C2C2C' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23853953' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 
-/* ── Chat scrollbar ────────────────────────────────────────────────────────── */
-.chat-container::-webkit-scrollbar       { width: 4px; }
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
+.chat-container::-webkit-scrollbar       { width: 3px; }
 .chat-container::-webkit-scrollbar-track { background: transparent; }
 .chat-container::-webkit-scrollbar-thumb {
-  background: rgba(133,57,83,0.25);
+  background: rgba(133,57,83,0.35);
   border-radius: 10px;
 }
-
-/* ── Backdrop blur ─────────────────────────────────────────────────────────── */
-.backdrop-blur-md {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+.chat-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(133,57,83,0.55);
 }
 
-/* ── Headline font class utility ───────────────────────────────────────────── */
+/* Thin global scrollbar */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(243,244,244,0.12); border-radius: 4px; }
+
+/* ── Backdrop blur ───────────────────────────────────────────────────────── */
+.backdrop-blur-md {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* ── Headline font utility ───────────────────────────────────────────────── */
 h1, h2, h3, .font-headline {
   font-family: 'Hanken Grotesk', sans-serif;
 }
 
-/* ── Message entrance animation ────────────────────────────────────────────── */
+/* ── Message entrance animation ──────────────────────────────────────────── */
 @keyframes message-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0);   }
@@ -72,7 +84,7 @@ h1, h2, h3, .font-headline {
   animation: message-in 0.25s ease-out forwards;
 }
 
-/* ── Timeline event entrance ────────────────────────────────────────────────── */
+/* ── Timeline event entrance ─────────────────────────────────────────────── */
 @keyframes timeline-in {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0);    }
@@ -81,7 +93,7 @@ h1, h2, h3, .font-headline {
   animation: timeline-in 0.2s ease-out forwards;
 }
 
-/* ── Greeting bubble entrance ────────────────────────────────────────────────── */
+/* ── Greeting entrance ───────────────────────────────────────────────────── */
 @keyframes greeting-in {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
@@ -96,7 +108,7 @@ h1, h2, h3, .font-headline {
   animation: greeting-in 0.5s ease-out 0.3s both;
 }
 
-/* ── Typing indicator dots ────────────────────────────────────────────────────── */
+/* ── Typing indicator ────────────────────────────────────────────────────── */
 @keyframes typing-bounce {
   0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
   40%           { transform: translateY(-5px); opacity: 1;   }
@@ -112,54 +124,52 @@ h1, h2, h3, .font-headline {
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── Idle status fade ────────────────────────────────────────────────────────── */
+/* ── Idle status ─────────────────────────────────────────────────────────── */
 .idle-status {
   transition: opacity 0.45s ease-in-out;
 }
 
-/* ── Atmosphere utility classes ──────────────────────────────────────────────── */
-/* Defined after @tailwind utilities so same-specificity rules win the cascade   */
-
+/* ── Atmosphere utility classes ──────────────────────────────────────────── */
 .atm-bg {
   background-color: var(--atm-bg);
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-surface {
   background-color: var(--atm-surface) !important;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-surface2 {
   background-color: var(--atm-surface2) !important;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-bubble {
   background-color: var(--atm-bubble) !important;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-chip {
   background-color: var(--atm-chip) !important;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-primary-bg {
   background-color: var(--atm-primary) !important;
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .atm-primary-text {
   color: var(--atm-primary) !important;
-  transition: color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 550ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Atmosphere label badge — pulsing dot + label text */
+/* Atmosphere label badge */
 .atm-label-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--atm-muted);
-  transition: color 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 600ms ease;
+  transition: color 550ms cubic-bezier(0.4, 0, 0.2, 1), opacity 550ms ease;
 }
 .atm-label-badge::before {
   content: '';
@@ -168,20 +178,36 @@ h1, h2, h3, .font-headline {
   height: 5px;
   border-radius: 50%;
   background-color: var(--atm-primary);
-  transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 550ms cubic-bezier(0.4, 0, 0.2, 1);
   animation: atm-pulse 2.5s ease-in-out infinite;
 }
 @keyframes atm-pulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
+  50%       { opacity: 0.4; }
 }
 
-/* ── Splash Screen ───────────────────────────────────────────────────────────── */
+/* ── Scan line overlay (subtle NASA terminal feel) ───────────────────────── */
+@keyframes scanline {
+  from { background-position: 0 0; }
+  to   { background-position: 0 100%; }
+}
+
+/* ── Glow pulse animation ────────────────────────────────────────────────── */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(133,57,83,0.15); }
+  50%       { box-shadow: 0 0 40px rgba(133,57,83,0.35); }
+}
+.glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* ── Splash / Intro Screen ───────────────────────────────────────────────── */
+/* (SplashScreen.jsx is no longer mounted; styles kept for reference)         */
 
 .splash-screen {
   position: fixed;
   inset: 0;
-  background: #F3F4F4;
+  background: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -189,152 +215,29 @@ h1, h2, h3, .font-headline {
   opacity: 1;
   animation: splash-fade-in 0.35s ease-out both;
 }
-
 .splash-screen.splash-exiting {
   animation: splash-fade-out 0.6s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
-
-@keyframes splash-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
+@keyframes splash-fade-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes splash-fade-out {
   from { opacity: 1; transform: scale(1);    }
   to   { opacity: 0; transform: scale(1.02); }
 }
 
-/* Soft radial glow behind the icon */
-.splash-atmosphere {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -55%);
-  width: 520px;
-  height: 420px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(133, 57, 83, 0.10) 0%,
-    rgba(133, 57, 83, 0.04) 40%,
-    transparent 70%
-  );
-  border-radius: 50%;
-  pointer-events: none;
-  animation: splash-atmosphere-in 1.2s ease-out 0.1s both;
+.splash-icon { background: #0F0F0F; border-radius: 24px; }
+.splash-icon .material-symbols-outlined { color: #853953; }
+.splash-title   { color: #F3F4F4; font-family: 'Hanken Grotesk', sans-serif; }
+.splash-subtitle { color: rgba(243,244,244,0.55); }
+
+/* ── Focus visible ring ──────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(133,57,83,0.70);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-@keyframes splash-atmosphere-in {
-  from { opacity: 0; transform: translate(-50%, -55%) scale(0.7); }
-  to   { opacity: 1; transform: translate(-50%, -55%) scale(1);   }
-}
-
-/* Content stack */
-.splash-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 32px;
-  z-index: 1;
-}
-
-/* Icon wrapper — holds the ring and the icon box */
-.splash-icon-wrapper {
-  position: relative;
-  width: 92px;
-  height: 92px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Expanding pulse ring */
-.splash-icon-ring {
-  position: absolute;
-  inset: -14px;
-  border-radius: 28px;
-  box-shadow: 0 0 0 0 rgba(133, 57, 83, 0.25);
-  animation: splash-ring-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) 0.5s infinite;
-}
-
-@keyframes splash-ring-pulse {
-  0%  { box-shadow: 0 0 0  0px rgba(133, 57, 83, 0.25); }
-  70% { box-shadow: 0 0 0 22px rgba(133, 57, 83, 0.00); }
-  100%{ box-shadow: 0 0 0 22px rgba(133, 57, 83, 0.00); }
-}
-
-/* Icon box */
-.splash-icon {
-  width: 92px;
-  height: 92px;
-  background: #FFFFFF;
-  border-radius: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(44, 44, 44, 0.10);
-  box-shadow:
-    0 0 0   1px rgba(133, 57, 83, 0.08),
-    0 0  50px    rgba(133, 57, 83, 0.12),
-    0 24px 60px  rgba(44,  44,  44,  0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.80);
-  animation: splash-icon-enter 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
-}
-
-@keyframes splash-icon-enter {
-  from { opacity: 0; transform: scale(0.72); }
-  to   { opacity: 1; transform: scale(1);    }
-}
-
-.splash-icon .material-symbols-outlined {
-  font-size: 44px;
-  color: #853953;
-  font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 48;
-}
-
-/* Text group */
-.splash-text-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Main title */
-.splash-title {
-  color: #2C2C2C;
-  font-family: 'Hanken Grotesk', sans-serif;
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  text-align: center;
-  animation: splash-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.72s both;
-}
-
-/* Subtitle with blinking cursor */
-.splash-subtitle {
-  color: rgba(44, 44, 44, 0.55);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  text-align: center;
-  animation: splash-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1.0s both;
-}
-
-/* Blinking terminal cursor after the subtitle */
-.splash-subtitle::after {
-  content: '_';
-  color: rgba(133, 57, 83, 0.70);
-  animation: splash-cursor-blink 0.85s step-start 1.6s infinite;
-}
-
-@keyframes splash-cursor-blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-
-@keyframes splash-text-rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0);    }
+/* ── Selection color ─────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(133,57,83,0.35);
+  color: #F3F4F4;
 }
