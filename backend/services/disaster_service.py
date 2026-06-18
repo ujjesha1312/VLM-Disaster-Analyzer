@@ -159,14 +159,20 @@ async def run(image_path: str) -> dict:
     final_type  = fields.get("disaster_type") or category
 
     # ── Stage 3: Historical retrieval (best-effort, skipped when disabled) ──────
-    similar_events: list[dict] = []
+    similar_events:    list[dict] = []
+    retrieval_status:  str = "ok"
+    retrieval_message: str = ""
+
     from backend.config import ENABLE_RETRIEVAL
     if ENABLE_RETRIEVAL:
         try:
             from retrieval.search import find_similar_events
 
-            # Map CLIP/Qwen labels → indexed dataset categories (flood/cyclone/earthquake).
-            # Labels not in this map get no filter so the top visual matches are returned.
+            # The FAISS index contains only these three categories.
+            # Any disaster type not mapping here is considered unsupported —
+            # we return no events rather than mislead with unrelated results.
+            _SUPPORTED_CATEGORIES = {"flood", "cyclone", "earthquake"}
+
             _CATEGORY_MAP: dict[str, str] = {
                 "water disaster":        "flood",
                 "flood":                 "flood",
@@ -179,30 +185,43 @@ async def run(image_path: str) -> dict:
                 "earthquake":            "earthquake",
                 "infrastructure damage": "earthquake",
                 "seismic":               "earthquake",
-                "landslide":             "earthquake",
                 "human damage":          "earthquake",
                 "building damage":       "earthquake",
                 "structural damage":     "earthquake",
             }
-            cat_filter = _CATEGORY_MAP.get(final_type.lower())
-            log.info("[Retrieval] Starting — final_type=%r  cat_filter=%r", final_type, cat_filter)
 
-            similar_events = await run_with_gpu_lock(
-                asyncio.to_thread(find_similar_events, image_path, 5, cat_filter),
-                "Retrieval-CLIP",
+            cat_filter   = _CATEGORY_MAP.get(final_type.lower())
+            is_supported = cat_filter in _SUPPORTED_CATEGORIES
+
+            log.info(
+                "[Retrieval] detected=%r  mapped=%r  supported=%s",
+                final_type, cat_filter, is_supported,
             )
-            log.info("[Retrieval] First pass: %d events (filter=%r)", len(similar_events), cat_filter)
 
-            # Fallback: if the category-filtered search returned nothing,
-            # return the top visual matches regardless of category.
-            if not similar_events:
-                similar_events = await run_with_gpu_lock(
-                    asyncio.to_thread(find_similar_events, image_path, 5, None),
-                    "Retrieval-CLIP-fallback",
+            if not is_supported:
+                # Drought, Wildfire, Landslide, Tsunami, Volcanic Eruption, etc.
+                # are not in the index — skip retrieval entirely.
+                log.info(
+                    "[Retrieval] Skipping — %r is not a supported retrieval category. "
+                    "Returning empty events to avoid misleading results.",
+                    final_type,
                 )
-                log.info("[Retrieval] Fallback (unfiltered): %d events", len(similar_events))
+                retrieval_status  = "unsupported_category"
+                retrieval_message = "No historical events available for this disaster category."
+            else:
+                similar_events = await run_with_gpu_lock(
+                    asyncio.to_thread(find_similar_events, image_path, 5, cat_filter),
+                    "Retrieval-CLIP",
+                )
+                log.info(
+                    "[Retrieval] Filtered search (%r): %d events returned",
+                    cat_filter, len(similar_events),
+                )
+
         except Exception as _retrieval_err:
             log.warning("[Retrieval] Skipped due to error: %s", _retrieval_err)
+            retrieval_status  = "error"
+            retrieval_message = "Retrieval unavailable."
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
     log.info(f"Unified analysis complete in {elapsed_ms} ms — {final_type}, {severity}")
@@ -216,6 +235,8 @@ async def run(image_path: str) -> dict:
         "environmental_impact":      fields.get("environmental_impact", ""),
         "recommendations":           fields.get("recommendations", ""),
         "similar_events":            similar_events,
+        "retrieval_status":          retrieval_status,
+        "retrieval_message":         retrieval_message,
         "active_models":             ["CLIP", "Qwen2-VL"],
         "processing_time_ms":        elapsed_ms,
         "clip_raw":                  clip_raw,

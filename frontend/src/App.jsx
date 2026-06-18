@@ -796,8 +796,22 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
           />
         </div>
 
-        {/* ── Similar historical events (populated when FAISS index is built) ── */}
-        <SimilarEventsCard events={d.similar_events} />
+        {/* ── Similar historical events ── */}
+        {d.retrieval_status === "unsupported_category" ? (
+          <div className="rounded-xl border border-[#E8DDD4] bg-white p-4 flex items-start gap-3">
+            <span
+              className="material-symbols-outlined text-[#A08878] shrink-0 mt-0.5"
+              style={{ fontSize: "16px" }}
+            >
+              info
+            </span>
+            <p className="text-sm text-[#6B5A53]">
+              No historical disaster records are currently available for this disaster type.
+            </p>
+          </div>
+        ) : (
+          <SimilarEventsCard events={d.similar_events} />
+        )}
 
         {/* ── Suggested queries (only when conversation is fresh) ── */}
         {chatLength <= 2 && disasterCtx && (
@@ -1348,6 +1362,8 @@ export default function App() {
         environmental_impact:      data.environmental_impact,
         recommendations:           data.recommendations,
         similar_events:            data.similar_events ?? [],
+        retrieval_status:          data.retrieval_status  ?? "ok",
+        retrieval_message:         data.retrieval_message ?? "",
         active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
         processing_time_ms:        data.processing_time_ms ?? elapsed,
       };
@@ -1449,6 +1465,8 @@ export default function App() {
           environmental_impact:      data.environmental_impact,
           recommendations:           data.recommendations,
           similar_events:            data.similar_events ?? [],
+          retrieval_status:          data.retrieval_status  ?? "ok",
+          retrieval_message:         data.retrieval_message ?? "",
           active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
           processing_time_ms:        data.processing_time_ms,
         };
