@@ -89,6 +89,81 @@ def _parse_qwen_fields(text: str) -> tuple[dict, float | None]:
 
 
 # ---------------------------------------------------------------------------
+# Fix E — Severity normalisation
+# ---------------------------------------------------------------------------
+
+# Canonical severity levels expected by the frontend severityChipClass().
+_SEVERITY_CANONICAL = {"Critical", "High", "Moderate", "Low"}
+
+# Exact-match lookup (case-insensitive) to a canonical level.
+_SEVERITY_MAP: dict[str, str] = {
+    # canonical forms
+    "critical":  "Critical",
+    "high":      "High",
+    "moderate":  "Moderate",
+    "low":       "Low",
+    # synonyms / alternate wordings Qwen may produce
+    "severe":    "Critical",
+    "very high": "Critical",
+    "extreme":   "Critical",
+    "serious":   "High",
+    "medium":    "Moderate",
+    "mild":      "Low",
+    "minor":     "Low",
+    "minimal":   "Low",
+    "unknown":   "Moderate",
+}
+
+
+def _normalize_severity(raw: str) -> str:
+    """
+    Normalize Qwen's raw severity string to one of:
+    Critical / High / Moderate / Low.
+
+    Handles case variations, synonyms, and freeform phrases (e.g. "HIGH risk").
+    Defaults to "Moderate" for anything unrecognised.
+    """
+    if not raw:
+        return "Moderate"
+
+    # Direct lookup (case-insensitive)
+    lower = raw.strip().lower()
+    if lower in _SEVERITY_MAP:
+        return _SEVERITY_MAP[lower]
+
+    # Substring scan — handles "HIGH risk" or "CRITICAL — immediate response"
+    for token, canonical in _SEVERITY_MAP.items():
+        if token in lower:
+            return canonical
+
+    log.warning("[Severity] Unrecognised value %r — defaulting to Moderate", raw)
+    return "Moderate"
+
+
+# ---------------------------------------------------------------------------
+# Fix F — Field defaults
+# ---------------------------------------------------------------------------
+
+_FIELD_DEFAULTS: dict[str, str] = {
+    "visible_damage":       "Physical damage assessment not available — review imagery directly.",
+    "affected_area":        "Geographic scope not assessed — on-ground survey required.",
+    "environmental_impact": "Environmental impact assessment pending field evaluation.",
+    "recommendations":      "Deploy assessment teams and establish incident command immediately.",
+}
+
+
+def _apply_field_defaults(fields: dict) -> dict:
+    """
+    Replace any empty string field with a meaningful placeholder.
+    Prevents the frontend from rendering blank ReportCard cells.
+    """
+    for key, default in _FIELD_DEFAULTS.items():
+        if not fields.get(key, "").strip():
+            fields[key] = default
+    return fields
+
+
+# ---------------------------------------------------------------------------
 # CLIP output normaliser
 # ---------------------------------------------------------------------------
 
@@ -155,8 +230,16 @@ async def run(image_path: str) -> dict:
     if parsed_conf is not None and 0 <= parsed_conf <= 100:
         qwen_confidence = parsed_conf
 
-    severity    = fields.get("severity") or qwen_raw.get("metrics", {}).get("severity", "Unknown")
-    final_type  = fields.get("disaster_type") or category
+    # Fix E — normalise severity before it reaches the frontend
+    raw_severity = (
+        fields.get("severity")
+        or qwen_raw.get("metrics", {}).get("severity", "")
+    )
+    severity   = _normalize_severity(raw_severity)
+    final_type = fields.get("disaster_type") or category
+
+    # Fix F — apply default text to any empty fields
+    fields = _apply_field_defaults(fields)
 
     # ── Stage 3: Historical retrieval (best-effort, skipped when disabled) ──────
     similar_events:    list[dict] = []

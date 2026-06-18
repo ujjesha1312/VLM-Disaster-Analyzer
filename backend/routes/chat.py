@@ -8,6 +8,12 @@ POST /chat
 
 The endpoint is intentionally stateless — conversation history is maintained
 by the client and sent with each request (last N messages).
+
+Hardening changes:
+  Fix J — Question length capped at 2 000 characters.  Empty or over-length
+           questions return HTTP 400 with a clear error message.
+           History items are capped at 500 characters each to prevent
+           unbounded context injection.
 """
 
 from __future__ import annotations
@@ -16,6 +22,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+
+# Fix J — Input limits
+_MAX_QUESTION_LEN: int = 2_000   # characters
+_MAX_HISTORY_MSG_LEN: int = 500  # characters per message in history
 
 
 # ---------------------------------------------------------------------------
@@ -58,15 +68,31 @@ def chat(req: ChatRequest) -> ChatResponse:
     The image is NOT re-analysed — only the pre-extracted DisasterContext
     and recent chat history are used to generate the response.
     """
+    # Fix J — Validate question
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    if len(req.question) > _MAX_QUESTION_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Question exceeds maximum length of {_MAX_QUESTION_LEN} characters "
+                f"({len(req.question)} received). Please shorten your question."
+            ),
+        )
+
+    # Fix J — Truncate overly-long history messages to limit context injection surface
+    sanitized_history = [
+        {"role": m.role, "content": m.content[:_MAX_HISTORY_MSG_LEN]}
+        for m in req.history
+    ]
 
     try:
         from backend.services.chat_service import generate_response
         answer = generate_response(
             question=req.question,
             ctx=req.context.model_dump(),
-            history=[m.model_dump() for m in req.history],
+            history=sanitized_history,
         )
         return ChatResponse(response=answer)
 

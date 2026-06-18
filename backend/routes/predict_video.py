@@ -13,6 +13,12 @@ Endpoints:
     POST /predict/video/internvideo    — InternVideo2 (stub)
     POST /predict/video/qwen           — Qwen2-VL video mode (stub)
     GET  /predict/video/models         — list available video models
+
+Hardening changes:
+  Fix B  — Magic-byte validation for video containers.
+  Fix K  — Explicit 200 MB size limit (was 500 MB — reduced to match spec).
+  Fix C  — _save_temp_video now uses a system-generated name; caller routes
+            use finally blocks to guarantee cleanup.
 """
 
 from __future__ import annotations
@@ -32,7 +38,43 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/predict/video")
 
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
-MAX_VIDEO_SIZE_MB = 500
+
+# Fix K — 200 MB hard limit (was 500 MB)
+MAX_VIDEO_SIZE_MB = 200
+
+# ---------------------------------------------------------------------------
+# Fix B — Video magic-byte signatures
+# ---------------------------------------------------------------------------
+
+# Each entry: (format_name, list_of_byte_prefixes_to_check_at_offset_0)
+# MP4/MOV: ftyp box may start at offset 4, so we check bytes 4-8 as well.
+_VIDEO_MAGIC_SIGS: list[bytes] = [
+    b"\x1aE\xdf\xa3",     # MKV / WebM (EBML magic)
+    b"RIFF",              # AVI (RIFF....AVI )
+    b"FLV",               # FLV
+]
+
+# MP4/MOV use an ISO base media file container; the "ftyp" atom starts at
+# byte offset 4 (bytes 0-3 are the atom size).  We can't rely on a fixed
+# magic at byte 0, but the string "ftyp" always appears at bytes [4:8].
+def _is_mp4_or_mov(header: bytes) -> bool:
+    return len(header) >= 12 and header[4:8] in (
+        b"ftyp", b"moov", b"mdat", b"free", b"wide",
+    )
+
+
+def _validate_video_magic(data: bytes) -> bool:
+    """Return True if *data* starts with a known video container signature."""
+    header = data[:12]
+    # AVI extra check: bytes 8–11 must be b"AVI " or b"AVIX"
+    if header.startswith(b"RIFF") and header[8:12] not in (b"AVI ", b"AVIX"):
+        return False
+    for sig in _VIDEO_MAGIC_SIGS:
+        if header.startswith(sig):
+            return True
+    if _is_mp4_or_mov(header):
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +94,8 @@ class VideoAnalysisResponse(BaseModel):
 # Utility
 # ---------------------------------------------------------------------------
 
-def _validate_video(upload: UploadFile) -> None:
+def _validate_video_extension(upload: UploadFile) -> None:
+    """Reject files whose extension is not in the allowed set."""
     ext = Path(upload.filename or "video.mp4").suffix.lower()
     if ext not in ALLOWED_VIDEO_EXTENSIONS:
         raise HTTPException(
@@ -62,18 +105,42 @@ def _validate_video(upload: UploadFile) -> None:
         )
 
 
+# Keep old name as alias so existing internal call sites continue to work.
+_validate_video = _validate_video_extension
+
+
 async def _save_temp_video(upload: UploadFile) -> str:
-    """Save uploaded video to a temp file and return its path."""
-    ext  = Path(upload.filename or "video.mp4").suffix.lower()
+    """
+    Read upload, validate size + magic bytes, save to a system-named temp
+    file, and return its path.  Caller is responsible for unlinking.
+    """
+    # Use a safe suffix from the allowed set only (Fix D-equivalent for video)
+    raw_ext = Path(upload.filename or "video.mp4").suffix.lower()
+    ext = raw_ext if raw_ext in ALLOWED_VIDEO_EXTENSIONS else ".mp4"
+
     data = await upload.read()
 
+    # Fix K — size check
     size_mb = len(data) / (1024 ** 2)
     if size_mb > MAX_VIDEO_SIZE_MB:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Video size {size_mb:.1f} MB exceeds limit of {MAX_VIDEO_SIZE_MB} MB.",
+            detail=(
+                f"Video size {size_mb:.1f} MB exceeds limit of {MAX_VIDEO_SIZE_MB} MB."
+            ),
         )
 
+    # Fix B — magic-byte check (reject non-video files)
+    if data and not _validate_video_magic(data):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                "File content does not match a supported video container. "
+                "Accepted formats: MP4, MOV, AVI, MKV, WebM."
+            ),
+        )
+
+    # Fix C — use system-generated name (no original filename in path)
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
     with os.fdopen(fd, "wb") as f:
         f.write(data)
