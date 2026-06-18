@@ -122,14 +122,30 @@ def find_similar_events(
         logger.error("[Retrieval] Embedding failed: %s", exc)
         return []
 
+    logger.info(
+        "[Retrieval] Embedding OK — norm=%.4f  filter=%r  index_ntotal=%d  meta_len=%d",
+        float((query_vec ** 2).sum() ** 0.5),
+        category_filter,
+        _index.ntotal,
+        len(_metadata),
+    )
+
     # Over-fetch if filtering by category so we can still return top_k after
     fetch_k = top_k * 5 if category_filter else top_k
 
     distances, indices = _index.search(query_vec, min(fetch_k, _index.ntotal))
 
+    logger.info(
+        "[Retrieval] FAISS returned %d hits — top3_dist=%s  top3_idx=%s",
+        len(distances[0]),
+        list(distances[0][:3]),
+        list(indices[0][:3]),
+    )
+
     results: list[dict] = []
     for dist, idx in zip(distances[0], indices[0]):
         if idx < 0 or idx >= len(_metadata):
+            logger.warning("[Retrieval] Skipping invalid idx=%d (meta_len=%d)", idx, len(_metadata))
             continue
 
         event = _metadata[idx]

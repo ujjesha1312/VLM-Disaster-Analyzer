@@ -164,14 +164,45 @@ async def run(image_path: str) -> dict:
     if ENABLE_RETRIEVAL:
         try:
             from retrieval.search import find_similar_events
-            similar_events = await asyncio.to_thread(
-                find_similar_events,
-                image_path,
-                5,                       # top_k
-                final_type.lower(),      # filter to same disaster category
+
+            # Map CLIP/Qwen labels → indexed dataset categories (flood/cyclone/earthquake).
+            # Labels not in this map get no filter so the top visual matches are returned.
+            _CATEGORY_MAP: dict[str, str] = {
+                "water disaster":        "flood",
+                "flood":                 "flood",
+                "flooding":              "flood",
+                "cyclone":               "cyclone",
+                "hurricane":             "cyclone",
+                "typhoon":               "cyclone",
+                "tropical storm":        "cyclone",
+                "storm":                 "cyclone",
+                "earthquake":            "earthquake",
+                "infrastructure damage": "earthquake",
+                "seismic":               "earthquake",
+                "landslide":             "earthquake",
+                "human damage":          "earthquake",
+                "building damage":       "earthquake",
+                "structural damage":     "earthquake",
+            }
+            cat_filter = _CATEGORY_MAP.get(final_type.lower())
+            log.info("[Retrieval] Starting — final_type=%r  cat_filter=%r", final_type, cat_filter)
+
+            similar_events = await run_with_gpu_lock(
+                asyncio.to_thread(find_similar_events, image_path, 5, cat_filter),
+                "Retrieval-CLIP",
             )
+            log.info("[Retrieval] First pass: %d events (filter=%r)", len(similar_events), cat_filter)
+
+            # Fallback: if the category-filtered search returned nothing,
+            # return the top visual matches regardless of category.
+            if not similar_events:
+                similar_events = await run_with_gpu_lock(
+                    asyncio.to_thread(find_similar_events, image_path, 5, None),
+                    "Retrieval-CLIP-fallback",
+                )
+                log.info("[Retrieval] Fallback (unfiltered): %d events", len(similar_events))
         except Exception as _retrieval_err:
-            log.debug("[Retrieval] Skipped: %s", _retrieval_err)
+            log.warning("[Retrieval] Skipped due to error: %s", _retrieval_err)
 
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
     log.info(f"Unified analysis complete in {elapsed_ms} ms — {final_type}, {severity}")

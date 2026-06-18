@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// VLM Disaster Analyzer — Design System  v3
-// Theme: Intelligence Blue  ·  Disaster Intelligence Platform
+// VLM Disaster Analyzer — Design System  v4
+// Theme: Warm Light  ·  Disaster Intelligence Platform
 //
 // Single source of truth for all visual tokens.
 // Mirrors tailwind.config.js — both must stay in sync.
@@ -8,40 +8,40 @@
 
 export const colors = {
   // Backgrounds
-  bg:              "#000000",
-  surface:         "#0F0F0F",
-  surfaceElevated: "#161616",
-  surfaceHigh:     "#1C1C1C",
+  bg:              "#FFF8F0",
+  surface:         "#FFFFFF",
+  surfaceElevated: "#FDF5EE",
+  surfaceHigh:     "#FDF5EE",
 
   // Brand
-  primary:   "#8FABD4",
-  secondary: "#4A70A9",
+  primary:   "#C08552",
+  secondary: "#8C5A3C",
 
   // Text
-  text:       "#EFECE3",
-  textMuted:  "rgba(239,236,227,0.60)",
-  textFaint:  "rgba(239,236,227,0.35)",
-  textGhost:  "rgba(239,236,227,0.18)",
+  text:       "#2B211F",
+  textMuted:  "#6B5A53",
+  textFaint:  "#A08878",
+  textGhost:  "#A08878",
 
   // Borders
-  border:       "rgba(239,236,227,0.08)",
-  borderMid:    "rgba(239,236,227,0.14)",
-  borderStrong: "rgba(239,236,227,0.24)",
+  border:       "#E8DDD4",
+  borderMid:    "#D4C4B8",
+  borderStrong: "#D4C4B8",
 
   // Glows
-  primaryGlow:   "rgba(143,171,212,0.22)",
-  secondaryGlow: "rgba(74,112,169,0.15)",
+  primaryGlow:   "rgba(192,133,82,0.15)",
+  secondaryGlow: "rgba(140,90,60,0.10)",
 
   // Severity
-  critical: { bg: "#EFECE3",                   text: "#000000",                  border: "rgba(239,236,227,0.60)" },
-  high:     { bg: "rgba(143,171,212,0.22)",     text: "#A8C4E0",                  border: "rgba(143,171,212,0.45)" },
-  moderate: { bg: "rgba(143,171,212,0.14)",     text: "#8FABD4",                  border: "rgba(143,171,212,0.28)" },
-  low:      { bg: "rgba(239,236,227,0.06)",     text: "rgba(239,236,227,0.55)",   border: "rgba(239,236,227,0.14)" },
+  critical: { bg: "#FDECEA",  text: "#C0392B",  border: "#E74C3C" },
+  high:     { bg: "#FEF5E7",  text: "#C08552",  border: "rgba(192,133,82,0.40)" },
+  moderate: { bg: "#EBF5FB",  text: "#2980B9",  border: "rgba(93,173,226,0.40)" },
+  low:      { bg: "#F4F6F7",  text: "#7F8C8D",  border: "#BDC3C7" },
 
   // Status
-  success: "#34D399",
-  error:   "#F87171",
-  warning: "#FBBF24",
+  success: "#27AE60",
+  error:   "#E74C3C",
+  warning: "#F39C12",
 };
 
 export const fonts = {
@@ -63,17 +63,17 @@ export const typography = {
 };
 
 export const shadows = {
-  sm:       "0 1px 4px rgba(0,0,0,0.70)",
-  md:       "0 4px 20px rgba(0,0,0,0.75)",
-  lg:       "0 8px 40px rgba(0,0,0,0.85)",
-  nav:      "0 1px 0 rgba(239,236,227,0.06)",
-  card:     "0 1px 3px rgba(0,0,0,0.70), 0 0 0 1px rgba(239,236,227,0.06)",
-  input:    "0 0 0 1px rgba(239,236,227,0.10), 0 4px 24px rgba(0,0,0,0.80)",
-  glowSm:   "0 0 16px rgba(143,171,212,0.25)",
-  glowMd:   "0 0 20px rgba(143,171,212,0.35)",
-  glowLg:   "0 0 30px rgba(143,171,212,0.50)",
-  glowXl:   "0 0 40px rgba(143,171,212,0.22), 0 0 80px rgba(74,112,169,0.12)",
-  accentSm: "0 0 20px rgba(143,171,212,0.10)",
+  sm:       "0 1px 4px rgba(0,0,0,0.08)",
+  md:       "0 4px 20px rgba(0,0,0,0.10)",
+  lg:       "0 8px 40px rgba(0,0,0,0.12)",
+  nav:      "0 1px 0 rgba(43,33,31,0.06)",
+  card:     "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(43,33,31,0.06)",
+  input:    "0 0 0 1px rgba(43,33,31,0.10), 0 4px 24px rgba(0,0,0,0.06)",
+  glowSm:   "0 0 16px rgba(192,133,82,0.20)",
+  glowMd:   "0 0 20px rgba(192,133,82,0.30)",
+  glowLg:   "0 0 30px rgba(192,133,82,0.40)",
+  glowXl:   "0 0 40px rgba(192,133,82,0.20), 0 0 80px rgba(140,90,60,0.10)",
+  accentSm: "0 0 20px rgba(192,133,82,0.10)",
 };
 
 export const borderRadius = {
@@ -100,8 +100,8 @@ export const spacing = {
 };
 
 export const gradients = {
-  ambient: "radial-gradient(ellipse at 40% 45%, rgba(143,171,212,0.06) 0%, #000000 55%, #000000 100%)",
-  primary: "linear-gradient(135deg, #8FABD4 0%, #4A70A9 100%)",
+  ambient: "radial-gradient(ellipse at 40% 45%, rgba(192,133,82,0.06) 0%, #FFF8F0 55%, #FFF8F0 100%)",
+  primary: "linear-gradient(135deg, #C08552 0%, #8C5A3C 100%)",
   streamH: (color) => `linear-gradient(to right, transparent 0%, ${color} 55%, #ffffff 100%)`,
   streamV: (color) => `linear-gradient(to bottom, transparent 0%, ${color} 55%, #ffffff 100%)`,
 };

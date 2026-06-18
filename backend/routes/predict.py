@@ -212,44 +212,6 @@ async def predict_sequential(
 
 
 # -------------------------------------------------------------------
-# POST /predict/disaster  — unified CLIP → Qwen → FAISS pipeline
-# Must appear before /predict/{model_name} so the static path wins.
-# -------------------------------------------------------------------
-
-@router.post("/predict/disaster")
-async def predict_disaster_unified(file: UploadFile = File(...)):
-    """Full unified pipeline: CLIP classification → Qwen2-VL analysis → FAISS retrieval."""
-    if file.content_type is not None and file.content_type not in _ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=415, detail="Unsupported image type")
-
-    contents = await file.read()
-    if len(contents) > _MAX_BYTES:
-        raise HTTPException(status_code=413, detail="File too large")
-
-    suffix = _CONTENT_TYPE_TO_SUFFIX.get(file.content_type or "", ".jpg")
-    tmp_path = None
-
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(contents)
-            tmp_path = Path(tmp.name)
-
-        from backend.services import disaster_service
-        result = await disaster_service.run(str(tmp_path))
-        return JSONResponse(result)
-
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid image: {exc}")
-    except Exception as exc:
-        log.error("Unified disaster pipeline error: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Inference error: {exc}")
-
-    finally:
-        if tmp_path is not None:
-            tmp_path.unlink(missing_ok=True)
-
-
-# -------------------------------------------------------------------
 # POST /predict/{model_name}
 # -------------------------------------------------------------------
 
