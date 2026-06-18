@@ -1185,7 +1185,8 @@ export default function App() {
   const [fileError,     setFileError]     = useState(null);
   const [modelOutputs,  setModelOutputs]  = useState({});
   const [modelStatus,   setModelStatus]   = useState({});
-  const [analysisError, setAnalysisError] = useState(null);
+  const [analysisError,    setAnalysisError]    = useState(null);
+  const [nonDisasterInfo,  setNonDisasterInfo]  = useState(null);
   const [timeline,      setTimeline]      = useState([]);
   const [disasterCtx,   setDisasterCtx]   = useState(null);
   const [chatHistory,   setChatHistory]   = useState([]);
@@ -1322,6 +1323,7 @@ export default function App() {
     setInputValue("");
     setFileError(null);
     setAnalysisError(null);
+    setNonDisasterInfo(null);
     setTimeline([]);
     setVideoAnalysis(null);
     setUnifiedResult(null);
@@ -1333,6 +1335,7 @@ export default function App() {
     setPhase("analyzing");
     setModelOutputs({});
     setAnalysisError(null);
+    setNonDisasterInfo(null);
     setDisasterCtx(null);
     setChatHistory([]);
     setUnifiedResult(null);
@@ -1350,6 +1353,19 @@ export default function App() {
 
       if (data.status === "disabled") {
         throw new Error(data.message || "Analysis engine is currently unavailable.");
+      }
+
+      if (data.status === "non_disaster") {
+        clearTimeout(t1);
+        setModelStatus({ clip: "complete" });
+        setTimeline([{ id: 3, text: `Scene analyzed — no disaster detected (${data.category || "non-disaster content"})` }]);
+        setNonDisasterInfo({
+          category:   data.category   || "Non-disaster scene",
+          confidence: data.confidence ?? null,
+          message:    data.message    || "The uploaded image does not appear to depict a disaster scene.",
+        });
+        setPhase("upload");
+        return;
       }
 
       const elapsed = Math.round(performance.now() - t0);
@@ -2213,6 +2229,33 @@ export default function App() {
               <div className="bg-[#E74C3C]/10 border border-[#E74C3C]/30 rounded-xl p-4 flex items-start gap-3">
                 <span className="material-symbols-outlined text-[#E74C3C] shrink-0 mt-0.5">wifi_off</span>
                 <p className="text-[#E74C3C] text-sm leading-relaxed">{analysisError}</p>
+              </div>
+            )}
+
+            {/* Non-disaster info banner */}
+            {nonDisasterInfo && (
+              <div className="bg-[#C08552]/10 border border-[#C08552]/30 rounded-xl p-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-[#C08552] shrink-0 mt-0.5">sentiment_satisfied</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[#2B211F] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    No disaster detected
+                  </p>
+                  <p className="text-[#5C4A3A] text-sm leading-relaxed mt-0.5">
+                    {nonDisasterInfo.message}
+                    {nonDisasterInfo.confidence != null && (
+                      <span className="ml-1 text-xs opacity-70">
+                        (CLIP: {nonDisasterInfo.category}{nonDisasterInfo.confidence > 0 ? `, ${nonDisasterInfo.confidence.toFixed(1)}% confidence` : ""})
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setNonDisasterInfo(null)}
+                  className="text-[#8C5A3C] hover:text-[#C08552] shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <span className="material-symbols-outlined text-base">close</span>
+                </button>
               </div>
             )}
 

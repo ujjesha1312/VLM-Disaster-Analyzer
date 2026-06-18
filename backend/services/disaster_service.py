@@ -188,6 +188,36 @@ def _extract_clip(clip_raw: dict) -> tuple[str, float]:
 
 
 # ---------------------------------------------------------------------------
+# Disaster relevance gate (runs after CLIP, before Qwen)
+# ---------------------------------------------------------------------------
+
+# CLIP labels that indicate a non-disaster scene.
+_NON_DISASTER_LABELS: frozenset[str] = frozenset({
+    "Forest", "Buildings and Street", "Sea", "Human"
+})
+
+# Minimum CLIP confidence for the top disaster label to proceed to Qwen.
+# Below this threshold the classification is too uncertain to warrant Qwen.
+_MIN_DISASTER_CONFIDENCE: float = 20.0
+
+
+def _check_disaster_relevance(clip_raw: dict) -> tuple[bool, str, float]:
+    """
+    Return (is_relevant, top_label, top_confidence).
+
+    is_relevant is False when the image is confidently non-disaster
+    (top label is in _NON_DISASTER_LABELS) OR when the model is
+    uncertain about everything (confidence < _MIN_DISASTER_CONFIDENCE).
+    """
+    m = clip_raw.get("metrics", {})
+    top_label = m.get("disaster_type", "")
+    top_conf  = float(m.get("confidence_score", 0))
+    if top_label in _NON_DISASTER_LABELS or top_conf < _MIN_DISASTER_CONFIDENCE:
+        return False, top_label, top_conf
+    return True, top_label, top_conf
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 
@@ -213,6 +243,22 @@ async def run(image_path: str) -> dict:
     )
     category, confidence = _extract_clip(clip_raw)
     log.info(f"CLIP → {category} ({confidence:.1f}%)")
+
+    # ── Relevance gate — skip Qwen for non-disaster scenes ───────────────────
+    is_relevant, _top_label, _top_conf = _check_disaster_relevance(clip_raw)
+    if not is_relevant:
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+        log.info(
+            "[Relevance] Non-disaster — top=%r conf=%.1f%% skipping Qwen (%.0f ms)",
+            _top_label, _top_conf, elapsed_ms,
+        )
+        return {
+            "status":             "non_disaster",
+            "message":            "The uploaded image does not appear to depict a disaster scene.",
+            "category":           _top_label,
+            "confidence":         round(_top_conf, 2),
+            "processing_time_ms": elapsed_ms,
+        }
 
     # ── Stage 2: Qwen with CLIP context ──────────────────────────────────────
     from models.qwen_model import predict_response as qwen_predict
