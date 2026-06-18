@@ -1247,7 +1247,7 @@ export default function App() {
   useEffect(() => {
     if (phase === "ready" && disasterCtx?.eventType) {
       applyTheme(disasterCtx.eventType);
-    } else if (phase === "upload") {
+    } else if (phase === "upload" || phase === "non_disaster") {
       resetTheme();
     }
   }, [phase, disasterCtx?.eventType]);
@@ -1358,13 +1358,12 @@ export default function App() {
       if (data.status === "non_disaster") {
         clearTimeout(t1);
         setModelStatus({ clip: "complete" });
-        setTimeline([{ id: 3, text: `Scene analyzed — no disaster detected (${data.category || "non-disaster content"})` }]);
         setNonDisasterInfo({
           category:   data.category   || "Non-disaster scene",
           confidence: data.confidence ?? null,
           message:    data.message    || "The uploaded image does not appear to depict a disaster scene.",
         });
-        setPhase("upload");
+        setPhase("non_disaster");
         return;
       }
 
@@ -2176,6 +2175,177 @@ export default function App() {
   }
 
   // ---------------------------------------------------------------------------
+  // PHASE: non_disaster — dedicated result screen for non-disaster images
+  // ---------------------------------------------------------------------------
+
+  if (phase === "non_disaster" && nonDisasterInfo) {
+    const supportedCategories = [
+      { icon: "water", label: "Flood" },
+      { icon: "cyclone", label: "Cyclone" },
+      { icon: "crisis_alert", label: "Earthquake" },
+      { icon: "landslide", label: "Landslide" },
+      { icon: "local_fire_department", label: "Wildfire" },
+      { icon: "wb_sunny", label: "Drought" },
+      { icon: "emergency", label: "Other disaster-related imagery" },
+    ];
+
+    return (
+      <div className="min-h-screen flex flex-col atm-bg">
+        {TopNav}
+
+        <main className="flex-grow flex items-center justify-center px-4 pt-28 pb-12">
+          <div className="max-w-[600px] w-full space-y-4">
+
+            {/* Image preview */}
+            {previewUrl && (
+              <div className="bg-white rounded-2xl border border-[#E8DDD4] shadow-sm overflow-hidden">
+                <div className="px-4 pt-4 pb-2">
+                  <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest">
+                    Uploaded Image
+                  </p>
+                </div>
+                <div className="flex justify-center px-4 pb-4">
+                  <img
+                    src={previewUrl}
+                    alt="Uploaded image"
+                    className="max-h-52 max-w-full rounded-xl object-contain shadow-md"
+                  />
+                </div>
+                <div className="flex items-center gap-2 px-4 pb-3 border-t border-[#F0EAE3] pt-3">
+                  <span
+                    className="material-symbols-outlined text-[#27AE60] shrink-0"
+                    style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                  <p className="text-[#6B5A53] text-xs">
+                    Classification complete — CLIP ViT-B/32
+                    {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0
+                      ? ` · ${nonDisasterInfo.confidence.toFixed(1)}% confidence`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Main result card */}
+            <div className="bg-white rounded-2xl border border-[#E8DDD4] shadow-sm overflow-hidden">
+
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[#F0EAE3] flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#FDF5EE] border border-[#C08552]/25 flex items-center justify-center shrink-0 mt-0.5">
+                  <span
+                    className="material-symbols-outlined text-[#C08552]"
+                    style={{ fontSize: "20px", fontVariationSettings: "'FILL' 1" }}
+                  >
+                    image_not_supported
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[#2B211F] font-semibold text-base" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                    Non-Disaster Image Detected
+                  </p>
+                  <p className="text-[#6B5A53] text-sm mt-0.5 leading-relaxed">
+                    {nonDisasterInfo.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Classification result */}
+              <div className="px-5 py-4 border-b border-[#F0EAE3] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest mb-1">
+                      Detected Category
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full bg-[#FDF5EE] border border-[#C08552]/25 text-[#C08552] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
+                        {nonDisasterInfo.category}
+                      </span>
+                    </div>
+                  </div>
+                  {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest mb-1">
+                        Confidence
+                      </p>
+                      <p className="text-[#2B211F] font-semibold text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        {nonDisasterInfo.confidence.toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Reason */}
+                <div className="bg-[#FDFAF5] border border-[#E8DDD4] rounded-xl px-4 py-3">
+                  <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest mb-1.5">
+                    Reason
+                  </p>
+                  <p className="text-[#5C4A3A] text-sm leading-relaxed">
+                    This image was classified as a non-disaster scene and was not sent to advanced disaster analysis. Only images depicting active disaster events are processed by the full intelligence pipeline.
+                  </p>
+                </div>
+              </div>
+
+              {/* Supported categories */}
+              <div className="px-5 py-4 border-b border-[#F0EAE3]">
+                <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest mb-3">
+                  Supported Disaster Categories
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {supportedCategories.map(({ icon, label }) => (
+                    <div key={label} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FDFAF5] border border-[#E8DDD4]">
+                      <span
+                        className="material-symbols-outlined text-[#C08552] shrink-0"
+                        style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+                      >
+                        {icon}
+                      </span>
+                      <span className="text-[#5C4A3A] text-xs font-medium">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 py-4 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    setNonDisasterInfo(null);
+                    setFile(null);
+                    setPreviewUrl(null);
+                    setFileError(null);
+                    setModelStatus({});
+                    setTimeline([]);
+                    setPhase("upload");
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#C08552] text-white text-sm font-semibold hover:bg-[#8C5A3C] transition-colors shadow-sm"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>upload</span>
+                  Upload Another Image
+                </button>
+                <button
+                  onClick={() => {
+                    setNonDisasterInfo(null);
+                    setModelStatus({});
+                    setTimeline([]);
+                    setPhase("upload");
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-[#E8DDD4] text-[#2B211F] text-sm font-semibold hover:bg-[#FDF5EE] transition-colors"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>home</span>
+                  Return Home
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // PHASE: analyzing
   // ---------------------------------------------------------------------------
 
@@ -2229,33 +2399,6 @@ export default function App() {
               <div className="bg-[#E74C3C]/10 border border-[#E74C3C]/30 rounded-xl p-4 flex items-start gap-3">
                 <span className="material-symbols-outlined text-[#E74C3C] shrink-0 mt-0.5">wifi_off</span>
                 <p className="text-[#E74C3C] text-sm leading-relaxed">{analysisError}</p>
-              </div>
-            )}
-
-            {/* Non-disaster info banner */}
-            {nonDisasterInfo && (
-              <div className="bg-[#C08552]/10 border border-[#C08552]/30 rounded-xl p-4 flex items-start gap-3">
-                <span className="material-symbols-outlined text-[#C08552] shrink-0 mt-0.5">sentiment_satisfied</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[#2B211F] text-sm font-semibold" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                    No disaster detected
-                  </p>
-                  <p className="text-[#5C4A3A] text-sm leading-relaxed mt-0.5">
-                    {nonDisasterInfo.message}
-                    {nonDisasterInfo.confidence != null && (
-                      <span className="ml-1 text-xs opacity-70">
-                        (CLIP: {nonDisasterInfo.category}{nonDisasterInfo.confidence > 0 ? `, ${nonDisasterInfo.confidence.toFixed(1)}% confidence` : ""})
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setNonDisasterInfo(null)}
-                  className="text-[#8C5A3C] hover:text-[#C08552] shrink-0"
-                  aria-label="Dismiss"
-                >
-                  <span className="material-symbols-outlined text-base">close</span>
-                </button>
               </div>
             )}
 
