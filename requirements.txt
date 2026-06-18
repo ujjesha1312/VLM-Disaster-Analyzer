@@ -49,6 +49,13 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9     # required for FastAPI UploadFile support
 
+# ── Historical retrieval (FAISS) ──────────────────────────────────────────────
+# Use faiss-gpu instead on CUDA machines: pip install faiss-gpu
+faiss-cpu>=1.7.4
+
+# ── Video pipeline ────────────────────────────────────────────────────────────
+opencv-python-headless>=4.8.0   # frame extraction fallback (ffmpeg preferred)
+
 # ── Evaluation pipeline & visualisation ──────────────────────────────────────
 pandas>=2.0.0
 matplotlib>=3.7.0

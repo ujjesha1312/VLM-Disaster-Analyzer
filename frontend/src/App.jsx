@@ -1331,7 +1331,7 @@ export default function App() {
 
     const t0 = performance.now();
     try {
-      const data = await callModel("/predict/clip", file);
+      const data = await callModel("/predict/disaster", file);
       clearTimeout(t1);
 
       if (data.status === "disabled") {
@@ -1339,13 +1339,25 @@ export default function App() {
       }
 
       const elapsed = Math.round(performance.now() - t0);
-      const report  = buildClipReport(data, elapsed);
+      const report = {
+        category:                  data.category,
+        classification_confidence: data.classification_confidence,
+        severity:                  data.severity,
+        visible_damage:            data.visible_damage,
+        affected_area:             data.affected_area,
+        environmental_impact:      data.environmental_impact,
+        recommendations:           data.recommendations,
+        similar_events:            data.similar_events ?? [],
+        active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
+        processing_time_ms:        data.processing_time_ms ?? elapsed,
+      };
 
       setModelStatus({ clip: "complete" });
       setTimeline([
-        { id: 3, text: `Disaster type identified: ${report.category}` },
-        { id: 4, text: `Severity: ${report.severity}` },
-        { id: 5, text: "Intelligence report ready" },
+        { id: 3, text: `CLIP classification → ${report.category} (${Math.round(report.classification_confidence)}%)` },
+        { id: 4, text: `Qwen2-VL structured assessment complete` },
+        { id: 5, text: `Severity: ${report.severity}` },
+        { id: 6, text: "Intelligence report ready" },
       ]);
 
       setUnifiedResult(report);

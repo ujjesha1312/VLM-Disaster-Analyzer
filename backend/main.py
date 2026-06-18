@@ -68,17 +68,12 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Allow the React dev server and the Vercel production frontend.
-# allow_credentials=True enables cookies/auth headers from these origins.
-# Specific origins are required when allow_credentials=True (wildcard not allowed).
+# Allow all origins so the frontend works from Colab/ngrok tunnels (URL changes each session).
+# allow_credentials must be False when allow_origins=["*"].
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://vlm-disaster-analyzer.vercel.app",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

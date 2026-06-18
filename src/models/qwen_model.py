@@ -81,31 +81,55 @@ def _load_model():
     if _model is None:
         with _lock:
             if _model is None:
-                _processor = AutoProcessor.from_pretrained(
-                    MODEL_PATH,
-                    trust_remote_code=True,
-                    local_files_only=True,
-                )
+                try:
+                    _processor = AutoProcessor.from_pretrained(
+                        MODEL_PATH,
+                        trust_remote_code=True,
+                        local_files_only=True,
+                    )
+                except OSError:
+                    logger.info("Qwen processor not cached locally — downloading from HuggingFace Hub…")
+                    _processor = AutoProcessor.from_pretrained(
+                        MODEL_PATH,
+                        trust_remote_code=True,
+                    )
 
                 bnb_config = _get_bnb_config()
 
                 if bnb_config is not None:
-                    _model = Qwen2VLForConditionalGeneration.from_pretrained(
-                        MODEL_PATH,
-                        quantization_config=bnb_config,
-                        device_map={"": 0},
-                        trust_remote_code=True,
-                        local_files_only=True,
-                    )
+                    try:
+                        _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                            MODEL_PATH,
+                            quantization_config=bnb_config,
+                            device_map={"": 0},
+                            trust_remote_code=True,
+                            local_files_only=True,
+                        )
+                    except OSError:
+                        logger.info("Qwen model not cached locally — downloading from HuggingFace Hub…")
+                        _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                            MODEL_PATH,
+                            quantization_config=bnb_config,
+                            device_map={"": 0},
+                            trust_remote_code=True,
+                        )
                 else:
                     # On CPU: no device_map — accelerate's "auto" shards tensors
                     # incorrectly when there is no GPU, causing shape mismatches.
-                    _model = Qwen2VLForConditionalGeneration.from_pretrained(
-                        MODEL_PATH,
-                        torch_dtype=dtype,
-                        trust_remote_code=True,
-                        local_files_only=True,
-                    )
+                    try:
+                        _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                            MODEL_PATH,
+                            torch_dtype=dtype,
+                            trust_remote_code=True,
+                            local_files_only=True,
+                        )
+                    except OSError:
+                        logger.info("Qwen model not cached locally — downloading from HuggingFace Hub…")
+                        _model = Qwen2VLForConditionalGeneration.from_pretrained(
+                            MODEL_PATH,
+                            torch_dtype=dtype,
+                            trust_remote_code=True,
+                        )
 
                 _model.eval()
 
