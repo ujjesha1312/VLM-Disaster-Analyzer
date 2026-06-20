@@ -66,7 +66,7 @@ _ALLOWED_CONTENT_TYPES = {
     "application/octet-stream",  # Browser fallback; PIL validates actual content
 }
 
-_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
 
 _CONTENT_TYPE_TO_SUFFIX = {
     "image/jpeg":              ".jpg",

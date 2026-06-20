@@ -1,10 +1,6 @@
 """
 main.py — FastAPI application entry point.
 
-Multi-VLM Image Understanding Platform for disaster scene analysis.
-Five Vision Language Models are active, each producing a different
-style of output from the same uploaded image.
-
 Start from the project root:
     uvicorn backend.main:app --reload --port 8000
 """
@@ -42,26 +38,25 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="VLM Disaster Analyzer",
     description=(
-        "## Multi-VLM Image Understanding Platform\n\n"
-        "Upload the **same disaster image** to five Vision Language Models "
-        "and compare how each interprets the scene differently:\n\n"
-        "| Model | Endpoint | Backend | Output Style | Key Field |\n"
-        "|-------|----------|---------|-------------|----------|\n"
-        "| **CLIP** | `POST /predict/clip` | Local | Semantic classification | `prediction` + `confidence` |\n"
-        "| **BLIP-2** | `POST /predict/blip2` | Local | Multimodal caption generation | `caption` |\n"
-        "| **LLaVA** | `POST /predict/llava` | Local | Visual scene reasoning | `response` |\n"
-        "| **Qwen2-VL** | `POST /predict/qwen` | Local | Structured scene understanding | `response` |\n"
-        "| **GPT-4V** | `POST /predict/gpt4v` | Cloud ☁️ | Advanced multimodal reasoning | `response` |\n\n"
-        "> **GPT-4V** requires `OPENAI_API_KEY` in `.env`. Returns HTTP 503 if not configured.\n\n"
-        "### Same image — five perspectives\n"
+        "## Disaster Intelligence Platform\n\n"
+        "Upload a disaster image or video to receive a structured intelligence report "
+        "with severity assessment, damage analysis, historical precedents, and follow-up "
+        "chat capabilities.\n\n"
+        "### Production pipeline\n"
         "```\n"
-        "CLIP      → { \"prediction\": \"Flood\", \"confidence\": 87.3 }\n"
-        "BLIP-2    → { \"caption\": \"a flooded road with submerged trees\" }\n"
-        "LLaVA     → { \"response\": \"The image shows severe urban flooding...\" }\n"
-        "Qwen2-VL  → { \"response\": \"Large-scale flooding with submerged roads...\" }\n"
-        "GPT-4V    → { \"response\": \"The image depicts severe flooding affecting...\" }\n"
+        "Image → CLIP triage (~150 ms) → Qwen2-VL report (2–5 s) → FAISS retrieval (~50 ms)\n"
         "```\n\n"
-        "Use `GET /models` to explore all available backends and their output schemas."
+        "### Key endpoints\n"
+        "| Endpoint | Purpose |\n"
+        "|----------|---------|\n"
+        "| `POST /predict/disaster` | Unified CLIP + Qwen2-VL report (production) |\n"
+        "| `POST /predict/video` | Video frame extraction + disaster report |\n"
+        "| `POST /chat` | Context-aware follow-up Q&A |\n"
+        "| `POST /retrieval/search` | Standalone FAISS historical event search |\n"
+        "| `GET /models` | List available models and their schemas |\n\n"
+        "Research endpoints (`/predict/clip`, `/predict/blip2`, `/predict/llava`, "
+        "`/predict/qwen`) are available when `ACTIVE_MODELS` includes the relevant key.\n\n"
+        "> Set `ACTIVE_MODELS=clip,qwen` (production) or `clip,blip2,llava,qwen` (research)."
     ),
     version="5.0.0",
     docs_url="/docs",
@@ -96,25 +91,21 @@ app.include_router(chat_router,       tags=["Intelligence Chat"])
 
 @app.get("/", tags=["Health"], summary="API health check")
 def root() -> dict:
-    """Confirm the server is running and return the active endpoints."""
+    """Confirm the server is running and return the deployment profile."""
+    from backend.config import ACTIVE_MODELS, DEPLOYMENT_PROFILE, ENABLE_RETRIEVAL
     return {
-        "status":  "running",
-        "version": "5.0.0",
-        "active_models": {
-            "local": ["clip", "blip2", "llava", "qwen"],
-            "cloud": ["gpt4v"],
-        },
+        "status":             "running",
+        "version":            "5.0.0",
+        "deployment_profile": DEPLOYMENT_PROFILE,
+        "active_models":      sorted(ACTIVE_MODELS),
+        "retrieval_enabled":  ENABLE_RETRIEVAL,
         "endpoints": {
-            "docs":           "/docs",
-            "models":         "/models",
-            "predict_clip":   "/predict/clip",
-            "predict_blip2":  "/predict/blip2",
-            "predict_llava":  "/predict/llava",
-            "predict_qwen":   "/predict/qwen",
-            "predict_gpt4v":  "/predict/gpt4v",
-        },
-        "notes": {
-            "gpt4v": "Requires OPENAI_API_KEY in .env — returns 503 if not configured",
+            "docs":             "/docs",
+            "unified_analysis": "/predict/disaster",
+            "video_analysis":   "/predict/video",
+            "chat":             "/chat",
+            "retrieval":        "/retrieval/search",
+            "models":           "/models",
         },
     }
 
