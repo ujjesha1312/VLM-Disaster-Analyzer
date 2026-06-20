@@ -69,8 +69,8 @@ def _template_response(question: str, ctx: dict) -> str:
 
     if any(w in q for w in ["sever", "how bad", "intensity", "serious", "extent", "danger"]):
         return (
-            f"Based on multi-model analysis, this **{event}** event is assessed as **{severity}** severity "
-            f"(CLIP classification confidence: **{confidence}%**).\n\n"
+            f"Based on visual analysis, this **{event}** event is assessed as **{severity}** severity "
+            f"(classification confidence: **{confidence}%**).\n\n"
             f"{reasoning.split('.')[0] + '.' if reasoning else ''} "
             f"{'Scene assessment confirms: ' + scene.split('.')[0] + '.' if scene else ''}"
         )
@@ -102,7 +102,7 @@ def _template_response(question: str, ctx: dict) -> str:
     if any(w in q for w in ["infrastructure", "road", "build", "damage", "structur", "bridge", "power", "utility"]):
         return (
             f"{scene.split(chr(10))[0] if scene else ''} "
-            f"{'BLIP-2 visual report: ' + caption + '.' if caption else ''}\n\n"
+            f"{'Visual description: ' + caption + '.' if caption else ''}\n\n"
             f"Priority infrastructure assessment should cover: transportation networks, "
             f"utility systems (power, water, gas), emergency service access routes, "
             f"and critical communication infrastructure."
@@ -118,18 +118,18 @@ def _template_response(question: str, ctx: dict) -> str:
             f"should commence alongside immediate emergency response."
         )
 
-    if any(w in q for w in ["clip", "blip", "llava", "qwen", "model", "confidence", "caption", "predict"]):
+    if any(w in q for w in ["model", "confidence", "caption", "predict", "analysis", "classif"]):
         return (
-            f"**Multi-model analysis results:**\n\n"
-            f"🎯 **CLIP**: {event} ({confidence}% confidence)\n"
-            f"✍️ **BLIP-2**: \"{caption or '—'}\"\n"
-            f"🧠 **LLaVA**: {reasoning.split('.')[0] + '.' if reasoning else '—'}\n"
-            f"🔍 **Qwen2-VL**: {scene.split('.')[0] + '.' if scene else '—'}"
+            f"**Disaster intelligence analysis summary:**\n\n"
+            f"• **Event**: {event} ({confidence}% confidence)\n"
+            f"• **Scene description**: {caption or '—'}\n"
+            f"• **Scene reasoning**: {reasoning.split('.')[0] + '.' if reasoning else '—'}\n"
+            f"• **Structured assessment**: {scene.split('.')[0] + '.' if scene else '—'}"
         )
 
     # Default — synthesise available context
     return (
-        f"Regarding this **{event}** event ({confidence}% CLIP confidence, severity: {severity}):\n\n"
+        f"Regarding this **{event}** event ({confidence}% confidence, severity: {severity}):\n\n"
         f"{reasoning.split('.')[0] + '. ' if reasoning else ''}"
         f"{scene.split('.')[0] + '. ' if scene else ''}\n\n"
         f"I can provide specific analysis on severity assessment, emergency protocols, "
@@ -146,13 +146,13 @@ def _build_system_prompt(ctx: dict) -> str:
     return (
         "You are a senior disaster intelligence analyst providing real-time support "
         "to an emergency operations team.\n\n"
-        "The following disaster context was extracted from a field photograph by four "
-        "specialised AI vision models:\n\n"
+        "The following disaster context was extracted from a field photograph by the "
+        "disaster intelligence system:\n\n"
         f"• **Event type**: {ctx.get('eventType', 'Unknown')} "
-        f"(CLIP classification, {ctx.get('confidence', 0):.1f}% confidence)\n"
-        f"• **Visual description** (BLIP-2): {ctx.get('caption', 'Not available')}\n"
-        f"• **Scene reasoning** (LLaVA): {ctx.get('reasoning', 'Not available')}\n"
-        f"• **Structured assessment** (Qwen2-VL): {ctx.get('sceneAnalysis', 'Not available')}\n"
+        f"({ctx.get('confidence', 0):.1f}% classification confidence)\n"
+        f"• **Visual description**: {ctx.get('caption', 'Not available')}\n"
+        f"• **Scene reasoning**: {ctx.get('reasoning', 'Not available')}\n"
+        f"• **Structured assessment**: {ctx.get('sceneAnalysis', 'Not available')}\n"
         f"• **Assessed severity**: {ctx.get('severity', 'Unknown')}\n\n"
         "Answer user questions using only this pre-extracted context — do NOT request "
         "the image again. Be precise, professional, and actionable. Use domain-specific "

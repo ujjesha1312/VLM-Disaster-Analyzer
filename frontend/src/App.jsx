@@ -6,12 +6,12 @@ import IntroAnimation from "./components/IntroAnimation";
 // Backend
 // ---------------------------------------------------------------------------
 
-const API_BASE_URL =import.meta.env.VITE_API_URL || "https://providing-earthy-phonebook.ngrok-free.dev";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 const MODEL_TIMEOUT_MS = 180_000;
 const CHAT_TIMEOUT_MS  =  60_000;
-const MAX_FILE_SIZE_MB  = 10;
+const MAX_FILE_SIZE_MB  = 20;
 const MAX_FILE_SIZE     = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MAX_VIDEO_FILE_MB = 500;
+const MAX_VIDEO_FILE_MB = 200;
 const MAX_VIDEO_FILE    = MAX_VIDEO_FILE_MB * 1024 * 1024;
 
 const UNIFIED_LOADING_MSGS = [
@@ -711,7 +711,7 @@ function UnifiedReportPanel({ msg, unifiedResult, disasterCtx, onSuggestedQuery,
   if (!d) return null;
 
   const conf    = d.classification_confidence ?? 0;
-  const models  = d.active_models ?? ["CLIP", "Qwen2-VL"];
+  const models  = d.active_models ?? ["Disaster Intelligence Engine"];
   const procMs  = d.processing_time_ms ?? null;
 
   return (
@@ -916,7 +916,7 @@ function SimilarEventsCard({ events }) {
       </div>
 
       <p className="text-[9px] text-[#A08878] pt-1">
-        Similarity computed via CLIP cosine distance against {events.length} indexed events.
+        Similarity computed via visual feature matching against {events.length} indexed events.
       </p>
     </div>
   );
@@ -1093,7 +1093,7 @@ function VideoAssessmentPanel({ msg, videoAnalysis, unifiedResult }) {
             <p className="text-[#A08878] text-[9px]">
               Frame classification votes:{" "}
               {Object.entries(votes).map(([c, v]) => `${c} (${v})`).join(" · ")}
-              {" · "}Best frame analyzed with CLIP + Qwen2-VL
+              {" · "}Best frame selected for detailed scene analysis
             </p>
           )}
         </div>
@@ -1379,14 +1379,14 @@ export default function App() {
         similar_events:            data.similar_events ?? [],
         retrieval_status:          data.retrieval_status  ?? "ok",
         retrieval_message:         data.retrieval_message ?? "",
-        active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
+        active_models:             data.active_models ?? ["Disaster Intelligence Engine"],
         processing_time_ms:        data.processing_time_ms ?? elapsed,
       };
 
       setModelStatus({ clip: "complete" });
       setTimeline([
-        { id: 3, text: `CLIP classification → ${report.category} (${Math.round(report.classification_confidence)}%)` },
-        { id: 4, text: `Qwen2-VL structured assessment complete` },
+        { id: 3, text: `Scene classified: ${report.category} (${Math.round(report.classification_confidence)}%)` },
+        { id: 4, text: `Structured scene assessment complete` },
         { id: 5, text: `Severity: ${report.severity}` },
         { id: 6, text: "Intelligence report ready" },
       ]);
@@ -1482,14 +1482,14 @@ export default function App() {
           similar_events:            data.similar_events ?? [],
           retrieval_status:          data.retrieval_status  ?? "ok",
           retrieval_message:         data.retrieval_message ?? "",
-          active_models:             data.active_models ?? ["CLIP", "Qwen2-VL"],
+          active_models:             data.active_models ?? ["Disaster Intelligence Engine"],
           processing_time_ms:        data.processing_time_ms,
         };
         setUnifiedResult(report);
         setTimeline([
           { id: 1, text: `${data.frames_analyzed} frames extracted at 25/50/75/90%` },
-          { id: 2, text: `CLIP majority vote → ${data.category} (${Math.round(data.classification_confidence)}%)` },
-          { id: 3, text: "Qwen2-VL structured assessment complete" },
+          { id: 2, text: `Scene classification: ${data.category} (${Math.round(data.classification_confidence)}%)` },
+          { id: 3, text: "Structured scene assessment complete" },
           { id: 4, text: `Severity: ${data.severity}` },
         ]);
         setDisasterCtx({
@@ -2219,7 +2219,7 @@ export default function App() {
                     check_circle
                   </span>
                   <p className="text-[#6B5A53] text-xs">
-                    Classification complete — CLIP ViT-B/32
+                    Classification complete
                     {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0
                       ? ` · ${nonDisasterInfo.confidence.toFixed(1)}% confidence`
                       : ""}

@@ -366,7 +366,7 @@ async def run(image_path: str) -> dict:
         "similar_events":            similar_events,
         "retrieval_status":          retrieval_status,
         "retrieval_message":         retrieval_message,
-        "active_models":             ["CLIP", "Qwen2-VL"],
+        "active_models":             ["Disaster Intelligence Engine"],
         "processing_time_ms":        elapsed_ms,
         "clip_raw":                  clip_raw,
         "qwen_raw":                  qwen_raw,
