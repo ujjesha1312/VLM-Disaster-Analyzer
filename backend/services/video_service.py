@@ -46,6 +46,13 @@ _FRAME_POSITIONS = (0.25, 0.50, 0.75, 0.90)
 # Fixed second offsets used as fallback when video duration is unknown
 _FALLBACK_SEEK_S = (1.0,   3.0,  6.0,  10.0)
 
+# Non-disaster relevance gate — mirrors disaster_service._check_disaster_relevance
+# These CLIP labels indicate a non-disaster scene; below-threshold confidence also gates.
+_NON_DISASTER_LABELS: frozenset[str] = frozenset({
+    "Forest", "Buildings and Street", "Sea", "Human"
+})
+_MIN_DISASTER_CONFIDENCE: float = 20.0
+
 
 # ---------------------------------------------------------------------------
 # ffprobe helpers
@@ -431,76 +438,97 @@ async def process_video(path: str) -> dict:
       1. Extract stream metadata + thumbnail (always).
       2. Extract 4 inference frames at 25/50/75/90% of duration.
       3. Run CLIP on each frame; select best by majority vote.
-      4. Run disaster_service.run() (CLIP → Qwen2-VL → FAISS) on the best frame.
-      5. Return merged response: video_metadata + full disaster intelligence report.
+      4. Apply non-disaster relevance gate — return immediately if non-disaster.
+      5. Run disaster_service.run() (CLIP → Qwen2-VL → FAISS) on the best frame.
+      6. Return merged response: video_metadata + full disaster intelligence report.
+
+    Returns a non-disaster response when:
+      - The majority-voted CLIP label is in _NON_DISASTER_LABELS
+      - The winning CLIP confidence is below _MIN_DISASTER_CONFIDENCE
 
     Falls back to metadata-only response when:
       - CLIP or Qwen are disabled in the deployment profile
       - Frame extraction fails (ffmpeg and cv2 both unavailable)
       - disaster_service raises an unexpected exception
     """
-    import inspect
     t0 = time.perf_counter()
-
-    # TRACE: confirm which file this function body was loaded from
-    log.warning("[Video:TRACE] process_video() called — loaded from: %s", inspect.getfile(process_video))
 
     meta      = extract_metadata(path)
     thumb_b64 = extract_thumbnail(path)
 
-    log.warning("[Video:TRACE] metadata extracted — duration_s=%.2f, source=%s",
-                meta["duration_s"], meta["source"])
-
-    # Check deployment profile — full video analysis requires CLIP + Qwen
     try:
         from backend.config import ENABLE_CLIP, ENABLE_QWEN
         models_ready = ENABLE_CLIP and ENABLE_QWEN
-        log.warning("[Video:TRACE] config — ENABLE_CLIP=%s, ENABLE_QWEN=%s, models_ready=%s",
-                    ENABLE_CLIP, ENABLE_QWEN, models_ready)
     except Exception as cfg_exc:
         models_ready = False
-        log.warning("[Video:TRACE] config import FAILED: %s — models_ready=False", cfg_exc)
+        log.warning("[Video] Config import failed: %s — falling back to metadata-only", cfg_exc)
 
     frame_paths: list[str] = []
 
     if models_ready:
         try:
             frame_paths = extract_frames(path, meta["duration_s"])
-            log.warning("[Video:TRACE] extract_frames returned %d paths: %s",
-                        len(frame_paths), frame_paths)
         except Exception as exc:
-            log.warning("[Video:TRACE] extract_frames EXCEPTION: %s", exc)
-    else:
-        log.warning("[Video:TRACE] SKIP extract_frames — models_ready=False")
-
-    if not models_ready:
-        log.warning("[Video:TRACE] FALLBACK REASON: models_ready=False")
-    elif not frame_paths:
-        log.warning("[Video:TRACE] FALLBACK REASON: extract_frames returned 0 frames")
+            log.warning("[Video] Frame extraction failed: %s", exc)
 
     if models_ready and frame_paths:
         try:
-            log.warning("[Video:TRACE] calling _vote_best_frame with %d frames", len(frame_paths))
             best_frame, best_conf, winner_cat, vote_tally = await _vote_best_frame(frame_paths)
-            log.warning("[Video:TRACE] _vote_best_frame done — winner=%s conf=%.1f best_frame=%s",
-                        winner_cat, best_conf, best_frame)
 
-            log.warning("[Video:TRACE] calling disaster_service.run on best frame")
+            # ── Non-disaster relevance gate ───────────────────────────────────
+            # Mirror disaster_service._check_disaster_relevance:
+            # reject if winner label is non-disaster OR confidence too low.
+            is_disaster_scene = (
+                winner_cat not in _NON_DISASTER_LABELS
+                and best_conf >= _MIN_DISASTER_CONFIDENCE
+            )
+            if not is_disaster_scene:
+                elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+                log.info("[Video] Non-disaster gate — winner=%s conf=%.1f%%",
+                         winner_cat, best_conf)
+                return {
+                    "status":             "non_disaster",
+                    "video_metadata":     meta,
+                    "thumbnail_b64":      thumb_b64,
+                    "category":           winner_cat,
+                    "confidence":         round(best_conf, 2),
+                    "message":            "The uploaded video does not appear to contain a disaster-related scene.",
+                    "frame_votes":        vote_tally,
+                    "frames_analyzed":    len(frame_paths),
+                    "processing_time_ms": elapsed_ms,
+                }
+
+            # ── Full disaster pipeline on best frame ──────────────────────────
             from backend.services.disaster_service import run as disaster_run
             disaster = await disaster_run(best_frame)
 
+            # disaster_service may still return non_disaster if re-evaluating
+            # the best frame yields a below-threshold result on its own CLIP pass.
+            if disaster.get("status") == "non_disaster":
+                elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+                log.info("[Video] disaster_service returned non_disaster for best frame")
+                return {
+                    "status":             "non_disaster",
+                    "video_metadata":     meta,
+                    "thumbnail_b64":      thumb_b64,
+                    "category":           disaster.get("category", winner_cat),
+                    "confidence":         disaster.get("confidence", round(best_conf, 2)),
+                    "message":            disaster.get("message", "The uploaded video does not appear to contain a disaster-related scene."),
+                    "frame_votes":        vote_tally,
+                    "frames_analyzed":    len(frame_paths),
+                    "processing_time_ms": elapsed_ms,
+                }
+
             elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
-            log.warning("[Video:TRACE] FULL PIPELINE SUCCEEDED — %s %s in %.0f ms",
-                        disaster["category"], disaster["severity"], elapsed_ms)
+            log.info("[Video] Full pipeline complete — %s %s in %.0f ms",
+                     disaster["category"], disaster["severity"], elapsed_ms)
 
             return {
-                # Video stream info
-                "video_metadata":   meta,
-                "thumbnail_b64":    thumb_b64,
-                "frames_analyzed":  len(frame_paths),
-                "best_frame_index": frame_paths.index(best_frame),
-                "frame_votes":      vote_tally,
-                # Disaster intelligence — same field names as /predict/disaster
+                "video_metadata":            meta,
+                "thumbnail_b64":             thumb_b64,
+                "frames_analyzed":           len(frame_paths),
+                "best_frame_index":          frame_paths.index(best_frame),
+                "frame_votes":               vote_tally,
                 "category":                  disaster["category"],
                 "disaster_type":             disaster["category"],
                 "classification_confidence": disaster["classification_confidence"],
@@ -510,19 +538,20 @@ async def process_video(path: str) -> dict:
                 "environmental_impact":      disaster["environmental_impact"],
                 "recommendations":           disaster["recommendations"],
                 "similar_events":            disaster["similar_events"],
+                "retrieval_status":          disaster.get("retrieval_status", "ok"),
+                "retrieval_message":         disaster.get("retrieval_message", ""),
                 "active_models":             disaster["active_models"],
                 "processing_time_ms":        elapsed_ms,
             }
 
         except Exception as exc:
-            log.exception("[Video:TRACE] PIPELINE EXCEPTION (falling back to metadata): %s", exc)
+            log.exception("[Video] Pipeline exception (falling back to metadata): %s", exc)
         finally:
             for fp in frame_paths:
                 Path(fp).unlink(missing_ok=True)
 
     # ── Metadata-only fallback ────────────────────────────────────────────────
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
-    log.warning("[Video:TRACE] RETURNING METADATA-ONLY RESPONSE (fallback)")
     analysis   = build_mock_analysis(meta, frames_analyzed=len(frame_paths))
 
     for fp in frame_paths:

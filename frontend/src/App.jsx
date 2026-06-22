@@ -1456,6 +1456,7 @@ export default function App() {
     setPhase("analyzing");
     setModelOutputs({});
     setAnalysisError(null);
+    setNonDisasterInfo(null);
     setDisasterCtx(null);
     setChatHistory([]);
     setUnifiedResult(null);
@@ -1464,6 +1465,24 @@ export default function App() {
 
     try {
       const data = await callVideoAnalysis(file);
+
+      // Non-disaster video — fast path, no Qwen/retrieval ran
+      if (data.status === "non_disaster") {
+        setVideoAnalysis(data);
+        setModelStatus({ video: "complete" });
+        setNonDisasterInfo({
+          category:       data.category       || "Non-disaster scene",
+          confidence:     data.confidence     ?? null,
+          message:        data.message        || "The uploaded video does not appear to contain a disaster-related scene.",
+          isVideo:        true,
+          thumbnail:      data.thumbnail_b64  ?? null,
+          frameVotes:     data.frame_votes    ?? {},
+          framesAnalyzed: data.frames_analyzed ?? 0,
+        });
+        setPhase("non_disaster");
+        return;
+      }
+
       const hasFullReport = !!(data.category);
 
       setVideoAnalysis(data);
@@ -2175,19 +2194,31 @@ export default function App() {
   }
 
   // ---------------------------------------------------------------------------
-  // PHASE: non_disaster — dedicated result screen for non-disaster images
+  // PHASE: non_disaster — dedicated result screen for non-disaster images/videos
   // ---------------------------------------------------------------------------
 
   if (phase === "non_disaster" && nonDisasterInfo) {
+    const isVideoND = !!nonDisasterInfo.isVideo;
     const supportedCategories = [
-      { icon: "water", label: "Flood" },
-      { icon: "cyclone", label: "Cyclone" },
-      { icon: "crisis_alert", label: "Earthquake" },
-      { icon: "landslide", label: "Landslide" },
-      { icon: "local_fire_department", label: "Wildfire" },
-      { icon: "wb_sunny", label: "Drought" },
-      { icon: "emergency", label: "Other disaster-related imagery" },
+      { icon: "water",                  label: "Flood" },
+      { icon: "cyclone",                label: "Cyclone" },
+      { icon: "crisis_alert",           label: "Earthquake" },
+      { icon: "landslide",              label: "Landslide" },
+      { icon: "local_fire_department",  label: "Wildfire" },
+      { icon: "wb_sunny",               label: "Drought" },
+      { icon: "emergency",              label: "Other disaster-related imagery" },
     ];
+
+    const resetND = () => {
+      setNonDisasterInfo(null);
+      setFile(null);
+      setPreviewUrl(null);
+      setFileError(null);
+      setModelStatus({});
+      setTimeline([]);
+      setVideoAnalysis(null);
+      setPhase("upload");
+    };
 
     return (
       <div className="min-h-screen flex flex-col atm-bg">
@@ -2196,36 +2227,70 @@ export default function App() {
         <main className="flex-grow flex items-center justify-center px-4 pt-28 pb-12">
           <div className="max-w-[600px] w-full space-y-4">
 
-            {/* Image preview */}
-            {previewUrl && (
-              <div className="bg-white rounded-2xl border border-[#E8DDD4] shadow-sm overflow-hidden">
-                <div className="px-4 pt-4 pb-2">
-                  <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest">
-                    Uploaded Image
-                  </p>
+            {/* Preview — image uses previewUrl; video uses thumbnail from response */}
+            {isVideoND ? (
+              nonDisasterInfo.thumbnail && (
+                <div className="bg-white rounded-2xl border border-[#E8DDD4] shadow-sm overflow-hidden">
+                  <div className="px-4 pt-4 pb-2">
+                    <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest">
+                      Uploaded Video
+                    </p>
+                  </div>
+                  <div className="flex justify-center px-4 pb-4">
+                    <img
+                      src={nonDisasterInfo.thumbnail}
+                      alt="Video thumbnail"
+                      className="max-h-52 max-w-full rounded-xl object-cover shadow-md"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 px-4 pb-3 border-t border-[#F0EAE3] pt-3">
+                    <span
+                      className="material-symbols-outlined text-[#27AE60] shrink-0"
+                      style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+                    >
+                      check_circle
+                    </span>
+                    <p className="text-[#6B5A53] text-xs">
+                      Classification complete
+                      {nonDisasterInfo.framesAnalyzed > 0 && ` · ${nonDisasterInfo.framesAnalyzed} frames analysed`}
+                      {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0
+                        ? ` · ${nonDisasterInfo.confidence.toFixed(1)}% confidence`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-center px-4 pb-4">
-                  <img
-                    src={previewUrl}
-                    alt="Uploaded image"
-                    className="max-h-52 max-w-full rounded-xl object-contain shadow-md"
-                  />
+              )
+            ) : (
+              previewUrl && (
+                <div className="bg-white rounded-2xl border border-[#E8DDD4] shadow-sm overflow-hidden">
+                  <div className="px-4 pt-4 pb-2">
+                    <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest">
+                      Uploaded Image
+                    </p>
+                  </div>
+                  <div className="flex justify-center px-4 pb-4">
+                    <img
+                      src={previewUrl}
+                      alt="Uploaded image"
+                      className="max-h-52 max-w-full rounded-xl object-contain shadow-md"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 px-4 pb-3 border-t border-[#F0EAE3] pt-3">
+                    <span
+                      className="material-symbols-outlined text-[#27AE60] shrink-0"
+                      style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
+                    >
+                      check_circle
+                    </span>
+                    <p className="text-[#6B5A53] text-xs">
+                      Classification complete
+                      {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0
+                        ? ` · ${nonDisasterInfo.confidence.toFixed(1)}% confidence`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 px-4 pb-3 border-t border-[#F0EAE3] pt-3">
-                  <span
-                    className="material-symbols-outlined text-[#27AE60] shrink-0"
-                    style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}
-                  >
-                    check_circle
-                  </span>
-                  <p className="text-[#6B5A53] text-xs">
-                    Classification complete
-                    {nonDisasterInfo.confidence != null && nonDisasterInfo.confidence > 0
-                      ? ` · ${nonDisasterInfo.confidence.toFixed(1)}% confidence`
-                      : ""}
-                  </p>
-                </div>
-              </div>
+              )
             )}
 
             {/* Main result card */}
@@ -2238,12 +2303,12 @@ export default function App() {
                     className="material-symbols-outlined text-[#C08552]"
                     style={{ fontSize: "20px", fontVariationSettings: "'FILL' 1" }}
                   >
-                    image_not_supported
+                    {isVideoND ? "videocam_off" : "image_not_supported"}
                   </span>
                 </div>
                 <div>
                   <p className="text-[#2B211F] font-semibold text-base" style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}>
-                    Non-Disaster Image Detected
+                    {isVideoND ? "Non-Disaster Video Detected" : "Non-Disaster Image Detected"}
                   </p>
                   <p className="text-[#6B5A53] text-sm mt-0.5 leading-relaxed">
                     {nonDisasterInfo.message}
@@ -2282,9 +2347,24 @@ export default function App() {
                     Reason
                   </p>
                   <p className="text-[#5C4A3A] text-sm leading-relaxed">
-                    This image was classified as a non-disaster scene and was not sent to advanced disaster analysis. Only images depicting active disaster events are processed by the full intelligence pipeline.
+                    {isVideoND
+                      ? "This video was classified as a non-disaster scene and was not sent to advanced disaster analysis. Only videos depicting active disaster events are processed by the full intelligence pipeline."
+                      : "This image was classified as a non-disaster scene and was not sent to advanced disaster analysis. Only images depicting active disaster events are processed by the full intelligence pipeline."
+                    }
                   </p>
                 </div>
+
+                {/* Frame vote breakdown for video */}
+                {isVideoND && nonDisasterInfo.framesAnalyzed > 0 && (
+                  <div className="bg-[#FDFAF5] border border-[#E8DDD4] rounded-xl px-4 py-3">
+                    <p className="text-[10px] font-semibold text-[#A08878] uppercase tracking-widest mb-1.5">
+                      Frame Analysis
+                    </p>
+                    <p className="text-[#5C4A3A] text-sm">
+                      {nonDisasterInfo.framesAnalyzed} frame{nonDisasterInfo.framesAnalyzed !== 1 ? "s" : ""} extracted and classified — none met the disaster detection threshold.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Supported categories */}
@@ -2310,19 +2390,11 @@ export default function App() {
               {/* Actions */}
               <div className="px-5 py-4 flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => {
-                    setNonDisasterInfo(null);
-                    setFile(null);
-                    setPreviewUrl(null);
-                    setFileError(null);
-                    setModelStatus({});
-                    setTimeline([]);
-                    setPhase("upload");
-                  }}
+                  onClick={resetND}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#C08552] text-white text-sm font-semibold hover:bg-[#8C5A3C] transition-colors shadow-sm"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>upload</span>
-                  Upload Another Image
+                  Upload Another {isVideoND ? "Video" : "Image"}
                 </button>
                 <button
                   onClick={() => {
