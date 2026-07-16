@@ -1,4 +1,4 @@
-# VLM Disaster Analyzer
+# DisasterVision
 
 A multi-stage Vision Language Model pipeline for satellite and aerial disaster image analysis, severity assessment, historical precedent retrieval, and AI-powered follow-up Q&A.
 
